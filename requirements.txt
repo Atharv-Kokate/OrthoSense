@@ -1,0 +1,8 @@
+# Core dependencies
+opencv-python>=4.8.0
+
+# Pin NumPy to 1.x to avoid C-API crashes with pre-compiled MediaPipe wheels
+numpy<2.0.0
+
+# Pin MediaPipe to a stable version known to work with the legacy mp.solutions API
+mediapipe==0.10.14
