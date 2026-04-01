@@ -36,3 +36,11 @@ class PatientOnboardResponse(BaseModel):
     message: str
     patient_profile_id: int
     prescription_id: int
+
+# ==================== ADAPTATION & TELEMETRY ====================
+class AdaptationResponse(BaseModel):
+    status: str
+    message: str
+    is_adapted: bool
+    new_target_rom_degrees: Optional[float] = None
+    new_reps_per_set: Optional[int] = None

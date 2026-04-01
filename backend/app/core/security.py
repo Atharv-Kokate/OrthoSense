@@ -2,11 +2,12 @@ from datetime import datetime, timedelta
 from typing import Any, Union
 import jwt
 from passlib.context import CryptContext
+from app.core.config import settings
 
-# In a real product, keep this in .env
-SECRET_KEY = "0rth0$ense!_s3cr3t_v3ry_s3cur3"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 Days
+# Pull variables natively from .env via Pydantic model
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

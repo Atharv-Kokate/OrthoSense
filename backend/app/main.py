@@ -12,11 +12,12 @@ from jwt.exceptions import InvalidTokenError
 
 from app.database import engine, Base, get_db
 from app.models import domain
-from app.schemas import PatientOnboardRequest, PatientOnboardResponse, Token, LoginRequest
+from app.schemas import PatientOnboardRequest, PatientOnboardResponse, Token, LoginRequest, AdaptationResponse
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM
 from app.services.llm_service import generate_patient_feedback
 from app.services.telemetry_service import start_session, log_repetition
+from app.services.adaptation_engine import evaluate_patient_adaptation
 
 # --- DYNAMICALLY LINK THE EXISTING AI MODELS ---
 # By doing this, our FastAPI web server can use the 
@@ -153,6 +154,35 @@ def record_golden_rep_baseline(payload: PatientOnboardRequest, db: Session = Dep
         print(f"Error persisting golden baseline: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==========================================
+# ADAPTATION ENGINE REST API
+# ==========================================
+@app.post("/api/patients/{patient_id}/adaptation/evaluate", response_model=AdaptationResponse, tags=["adaptation"])
+def trigger_adaptation_evaluation(patient_id: int, exercise_type: str = "squat", db: Session = Depends(get_db)):
+    """
+    Evaluates the patient's performance based on their most recent session and adjusts target metrics if auto_adaptive is enabled.
+    """
+    try:
+        new_rx = evaluate_patient_adaptation(db, patient_id, exercise_type)
+        if new_rx:
+            return AdaptationResponse(
+                status="success",
+                message="Exercise prescription dynamically adjusted based on recent session telemetry.",
+                is_adapted=True,
+                new_target_rom_degrees=new_rx.target_rom_degrees,
+                new_reps_per_set=new_rx.reps_per_set
+            )
+        else:
+            return AdaptationResponse(
+                status="success",
+                message="No adaptation required at this time based on performance rules.",
+                is_adapted=False
+            )
+    except Exception as e:
+        print(f"Error executing adaptation engine: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==========================================
 # PATIENT WEBSOCKET TELEMETRY ENGINE
 # ==========================================
@@ -261,6 +291,17 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
                 
     except WebSocketDisconnect:
         print(f"Patient {patient_id} Tracking Session Ended cleanly.")
+        
+        # 🔥 Trigger the auto-adaptation engine automatically upon session completion!
+        try:
+            new_rx = evaluate_patient_adaptation(db, patient_id, "squat")
+            if new_rx:
+                print(f"✅ AI Engine dynamically prescribed new ROM: {new_rx.target_rom_degrees}° | Reps: {new_rx.reps_per_set} for Patient {patient_id}")
+            else:
+                print(f"ℹ️ AI Engine analyzed session for Patient {patient_id}. Existing prescription remains optimal.")
+        except Exception as adapt_err:
+            print(f"Adaptation Engine Execution Error safely caught: {adapt_err}")
+
     except Exception as e:
         print(f"Tracking error: {e}")
         try:
