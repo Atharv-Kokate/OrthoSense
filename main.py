@@ -4,6 +4,7 @@ from pose.pose_estimator import PoseEstimator
 from features.feature_extractor import FeatureExtractor
 from memory.temporal_buffer import TemporalBuffer
 from diagnosis import rules_engine
+from diagnosis.lstm_engine import LSTMEngine
 from agents.decision_agent import DecisionAgent
 from agents.feedback_agent import generate as generate_feedback
 from voice.speech_engine import SpeechEngine
@@ -26,6 +27,7 @@ def main():
     pose_estimator = PoseEstimator()
     feature_extractor = FeatureExtractor()
     temporal_buffer = TemporalBuffer(maxlen=30)
+    lstm_engine = LSTMEngine(exercise=exercise)
     decision_agent = DecisionAgent(cooldown=3.0)
     speech_engine = SpeechEngine()
     calibration_manager = CalibrationManager()
@@ -91,12 +93,18 @@ def main():
                     active_feedback_text = "Baseline Recorded & Active!"
                     active_feedback_level = "success"
             else:
-                # REGULAR TRACKING MODE (PHASE 3 ACTIVE)
+# REGULAR TRACKING MODE (PHASE 4: LSTM DEEP LEARNING ACTIVE)
                 temporal_buffer.add(features)
                 history = temporal_buffer.get_history()
-                
-                # Diagnosis Engine runs deep sequence extraction natively
-                diagnosis = rules_engine.analyze(features, history, exercise, golden_rep)
+                lstm_seq = temporal_buffer.get_lstm_sequence()
+
+                # Neural Network takes priority over hardcoded rules
+                if lstm_engine.ready and lstm_seq is not None:
+                    diagnosis = lstm_engine.analyze(lstm_seq)
+                else:
+                    # Fallback to older diagnosis logic if buffer isn't full or model missing
+                    diagnosis = rules_engine.analyze(features, history, exercise, golden_rep)
+
                 decision = decision_agent.decide(diagnosis, history)
                 
                 if decision:
