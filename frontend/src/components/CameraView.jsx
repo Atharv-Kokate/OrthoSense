@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
 import { useTelemetrySocket } from '../hooks/useTelemetrySocket';
 import { usePoseEngine } from '../hooks/usePoseEngine';
@@ -8,9 +8,10 @@ import VideoConsultation from './VideoConsultation';
 
 export default function CameraView() {
   const location = useLocation();
+  const { exerciseType } = useParams();
   const patientId = location.state?.patientId || localStorage.getItem('user_id') || 1;
   const isTeleRehab = location.state?.isTeleRehab || false;
-  const exercise = location.state?.exercise || 'squat';
+  const exercise = exerciseType || location.state?.exercise || 'squat';
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);

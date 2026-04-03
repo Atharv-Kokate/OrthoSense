@@ -93,6 +93,38 @@ export default function PatientDashboard() {
         </div>
       </div>
 
+            <div className="bg-emerald-600 rounded-3xl p-8 shadow-xl shadow-emerald-200 text-white relative overflow-hidden mt-6">
+        <div className="absolute -right-12 -top-12 opacity-10">
+           <Activity size={200} />
+        </div>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-6">
+            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30 hidden sm:block">
+               <PlayCircle size={48} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold tracking-tight">Forward Lunges</h3>
+              <p className="text-emerald-100 flex items-center gap-2 mt-1">
+                <span>3 Sets of 10 Reps</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                <span>Target Form: Balanced</span>
+              </p>
+              <div className="mt-2 text-xs font-bold bg-emerald-500/40 border border-emerald-400 text-emerald-50 px-3 py-1 rounded-full inline-block">
+                🦵 Using New Lunge ML Expert Model!
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <button
+              onClick={() => navigate('/patient/session/lunge', { state: { patientId: data.patient_id } })}
+              className="w-full md:w-auto bg-white text-emerald-700 px-8 py-3 rounded-xl font-bold hover:bg-emerald-50 hover:shadow-lg transition flex items-center justify-center gap-2"
+            >
+              Start Lunge Session
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4 text-slate-500">
