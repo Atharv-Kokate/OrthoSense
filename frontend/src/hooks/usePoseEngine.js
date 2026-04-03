@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 
 const Pose = window.Pose;
-const Camera = window.Camera;
 
 const calculateAngle = (a, b, c) => {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -20,8 +19,8 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
   }, [onTelemetryData]);
 
   useEffect(() => {
-    if (!Pose || !Camera) {
-      console.warn("MediaPipe variables not found on window object.");
+    if (!Pose) {
+      console.warn("MediaPipe Pose not found on window object.");
       return;
     }
 
@@ -37,7 +36,8 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
       minTrackingConfidence: 0.5,
     });
 
-    let camera = null;
+    let animationFrameId = null;
+    let isProcessing = false;
 
     const onResults = (results) => {
       if (!canvasRef.current) return;
@@ -84,6 +84,15 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
             raw_dict[POSE_NAMES[idx]] = lm;
         });
 
+        // Check visibility of key joints (hips and knees)
+        const avgVisibility = (
+          (leftHip?.visibility || 0) + 
+          (rightHip?.visibility || 0) + 
+          (leftKnee?.visibility || 0) + 
+          (rightKnee?.visibility || 0)
+        ) / 4;
+        const isLowerBodyVisible = avgVisibility > 0.65;
+
         // Bubble data up to whoever wants to send it to the backend
         if (telemetryCallbackRef.current) {
           telemetryCallbackRef.current({
@@ -91,7 +100,8 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
             left_knee_angle: lKneeAngle,
             right_knee_angle: rKneeAngle,
             back_angle: backAngle,
-            symmetry_score: symmetry
+            symmetry_score: symmetry,
+            lower_body_visible: isLowerBodyVisible
           });
         }
       }
@@ -100,25 +110,35 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
 
     pose.onResults(onResults);
 
-    if (
-      typeof window !== 'undefined' &&
-      webcamRef.current &&
-      webcamRef.current.video
-    ) {
-      camera = new Camera(webcamRef.current.video, {
-        onFrame: async () => {
-          if (webcamRef.current && webcamRef.current.video) {
-            await pose.send({ image: webcamRef.current.video });
-          }
-        },
-        width: 640,
-        height: 480,
-      });
-      camera.start();
-    }
+    // Use requestAnimationFrame instead of MediaPipe's Camera utility
+    // This avoids a second getUserMedia() call that conflicts with react-webcam
+    const processFrame = async () => {
+      const video = webcamRef.current?.video;
+      if (video && video.readyState >= 2 && !isProcessing) {
+        isProcessing = true;
+        try {
+          await pose.send({ image: video });
+        } catch (err) {
+          // Silently handle frame processing errors
+        }
+        isProcessing = false;
+      }
+      animationFrameId = requestAnimationFrame(processFrame);
+    };
+
+    // Wait for the video element to be ready before starting the frame loop
+    const waitForVideo = setInterval(() => {
+      const video = webcamRef.current?.video;
+      if (video && video.readyState >= 2) {
+        clearInterval(waitForVideo);
+        console.log('[PoseEngine] Video ready, starting frame processing loop');
+        animationFrameId = requestAnimationFrame(processFrame);
+      }
+    }, 200);
 
     return () => {
-      if (camera) camera.stop();
+      clearInterval(waitForVideo);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       pose.close();
     };
   }, [webcamRef, canvasRef]); // we exclude the callback intentionally by tracking via ref

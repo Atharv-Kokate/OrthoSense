@@ -29,6 +29,34 @@ class PatientProfile(Base):
     doctor = relationship("User", foreign_keys=[doctor_id])
     prescriptions = relationship("ExercisePrescription", back_populates="patient")
     sessions = relationship("TelemetrySession", back_populates="patient")
+    specific_exercises = relationship("PatientSpecificExercise", back_populates="patient")
+
+class PatientSpecificExercise(Base):
+    """Dynamically recorded custom exercises linked explicitly to a specific patient, 
+    complete with 3D skeleton data for replay."""
+    __tablename__ = "patient_specific_exercises"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patient_profiles.id"))
+    doctor_id = Column(Integer, ForeignKey("users.id"))
+    
+    name = Column(String, nullable=False)
+    description = Column(String)
+    
+    # E.g. {"knee_angle": ["hip", "knee", "ankle"]}
+    tracked_angles = Column(JSON, nullable=False)
+    
+    # 3D Tracking data to render the stick-figure & run DTW Engine
+    golden_rep_data = Column(JSON, nullable=False) 
+    
+    target_rom_degrees = Column(Float, nullable=True)
+    reps_per_set = Column(Integer, default=10)
+    sets_per_day = Column(Integer, default=3)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    patient = relationship("PatientProfile", back_populates="specific_exercises")
+    doctor = relationship("User", foreign_keys=[doctor_id])
 
 class CustomExercise(Base):
     """Dynamic exercises created by doctors via the no-code studio."""

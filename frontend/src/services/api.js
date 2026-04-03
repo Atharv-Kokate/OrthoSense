@@ -109,3 +109,39 @@ export const clinicalService = {
     return await res.json();
   }
 };
+
+export const callService = {
+  initiateCall: async (patientId, doctorName) => {
+    const res = await fetch(`${API_URL}/calls/initiate?patient_id=${patientId}&doctor_name=${encodeURIComponent(doctorName)}`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to initiate call');
+    return await res.json();
+  },
+
+  checkIncomingCall: async (patientId) => {
+    const res = await fetch(`${API_URL}/calls/check/${patientId}`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) return { has_call: false };
+    return await res.json();
+  },
+
+  acceptCall: async (patientId) => {
+    const res = await fetch(`${API_URL}/calls/accept/${patientId}`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to accept call');
+    return await res.json();
+  },
+
+  dismissCall: async (patientId) => {
+    const res = await fetch(`${API_URL}/calls/dismiss/${patientId}`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  }
+};

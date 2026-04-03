@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { useLocation } from 'react-router-dom';
 import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
@@ -13,6 +13,21 @@ export default function CameraView() {
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
+
+  // Capture the webcam's MediaStream so it can be SHARED with WebRTC (avoid 'Device in use' error)
+  const [webcamStream, setWebcamStream] = useState(null);
+
+  useEffect(() => {
+    // Poll until react-webcam has initialized the video and its srcObject is available
+    const interval = setInterval(() => {
+      const video = webcamRef.current?.video;
+      if (video && video.srcObject) {
+        setWebcamStream(video.srcObject);
+        clearInterval(interval);
+      }
+    }, 300);
+    return () => clearInterval(interval);
+  }, []);
 
   // Add a state to manage pre-session calibration
   const [isCalibrated, setIsCalibrated] = useState(false);
@@ -127,7 +142,19 @@ export default function CameraView() {
 
         {isTeleRehab && (
           <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden shadow-slate-200 border border-slate-700 h-[400px] shrink-0 flex flex-col relative w-full">
-            <VideoConsultation roomId={patientId.toString()} isInitiator={false} customClass="h-full rounded-2xl" />
+            {webcamStream ? (
+              <VideoConsultation 
+                roomId={patientId.toString()} 
+                isInitiator={false} 
+                customClass="h-full rounded-2xl"
+                sharedStream={webcamStream}  
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+                <div className="w-12 h-12 border-4 border-t-indigo-500 border-slate-700 rounded-full animate-spin mb-4"></div>
+                <p className="text-sm">Connecting camera for consultation...</p>
+              </div>
+            )}
           </div>
         )}
 

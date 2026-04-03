@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/api';
 
@@ -14,6 +14,15 @@ export default function Login() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+
+  useEffect(() => {
+    // If already logged in, redirect to correct dashboard
+    const token = localStorage.getItem('token');
+    const existingRole = localStorage.getItem('role');
+    if (token && existingRole) {
+      navigate(`/${existingRole}/dashboard`, { replace: true });
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

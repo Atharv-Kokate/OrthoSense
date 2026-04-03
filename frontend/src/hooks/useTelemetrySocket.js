@@ -23,7 +23,13 @@ export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
     reconnectInterval: 3000,
   });
 
-  // Initialize 2-Way Voice Communication Loop (Microphone Listening)
+  // Store stable references for the speech handlers to use without re-registering
+  const socketRef = useRef({ sendJsonMessage, readyState });
+  useEffect(() => {
+    socketRef.current = { sendJsonMessage, readyState };
+  }, [sendJsonMessage, readyState]);
+
+  // Initialize 2-Way Voice Communication Loop exactly ONCE
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       console.warn("Browser requires Chrome/Edge/Safari for Speech API!");
@@ -37,22 +43,27 @@ export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
     recognition.lang = 'en-US';
 
     recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+    recognition.onend = () => setIsListening(false);
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript.trim().toLowerCase();
       console.log("🗣️ PATIENT SPOKE:", transcript);
       
-      // Filter out empty noise, trigger socket if they say something meaningful
-      if (transcript.length > 3 && readyState === ReadyState.OPEN) {
-        // Stop current AI speech to let patient speak/intercept
+      const currentSocket = socketRef.current;
+      if (transcript.length > 0 && currentSocket.readyState === ReadyState.OPEN) {
         window.speechSynthesis.cancel();
-        
-        // Shoot command to Python backend immediately
-        sendJsonMessage({ "patient_vocal_command": transcript });
+        currentSocket.sendJsonMessage({ "patient_vocal_command": transcript });
       }
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech Recognition Error:", event.error);
+        if (event.error === 'not-allowed') {
+            alert("Microphone is blocked by the browser. Please check Edge/Chrome site permissions.");
+        } else if (event.error === 'network') {
+            alert("Speech recognition failed due to network error. This browser feature needs internet access.");
+        }
+        setIsListening(false);
     };
 
     recognitionRef.current = recognition;
@@ -60,11 +71,16 @@ export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
     return () => {
       if (recognitionRef.current) recognitionRef.current.abort();
     };
-  }, [readyState, sendJsonMessage]);
+  }, []);
 
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
-      try { recognitionRef.current.start(); } catch (e) {}
+      try { 
+        recognitionRef.current.start(); 
+      } catch (e) {
+        console.error("Failed to start listening:", e);
+        alert("Failed to access microphone via Web Speech API: " + e.message);
+      }
     }
   };
 
@@ -99,6 +115,7 @@ export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
               window.speechSynthesis.speak(utterance);
             }
             lastSpokenFeedback.current = data.llm_feedback;
+        }
 
         setTelemetry(prev => ({
           ...prev,

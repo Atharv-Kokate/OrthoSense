@@ -15,7 +15,7 @@ from app.models import domain
 from app.schemas import (
     PatientOnboardRequest, PatientOnboardResponse, Token, LoginRequest, DoctorRegisterRequest,
     AdaptationResponse, PatientDashboardResponse, DoctorDashboardResponse,
-    SessionSummary, PatientListSummary
+    SessionSummary, PatientListSummary, PatientSpecificExerciseCreate, PatientSpecificExerciseResponse
 )
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token, SECRET_KEY, ALGORITHM
@@ -171,11 +171,61 @@ def record_golden_rep_baseline(payload: PatientOnboardRequest, db: Session = Dep
             patient_profile_id=new_profile.id,
             prescription_id=new_prescription.id
         )
-        
+
     except Exception as e:
         db.rollback()
         print(f"Error persisting golden baseline: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==========================================
+# PATIENT SPECIFIC EXERCISES REST API
+# ==========================================
+
+@app.post("/api/patients/{patient_id}/exercises/record", response_model=PatientSpecificExerciseResponse, tags=["clinical"])
+def record_patient_specific_exercise(patient_id: int, payload: PatientSpecificExerciseCreate, db: Session = Depends(get_db)):
+    """
+    Records a 3D animated custom exercise exclusively designed for a specific patient.
+    Requires doctor_id in the token context, but we use payload/URL for now.
+    """
+    try:
+        # We need the user_id (doctor) who created this. Let's assume passed in payload or extracted from token.
+        # Since we don't strictly require a token dependency yet, we'll fetch the first doctor if not obvious
+        doctor = db.query(domain.User).filter(domain.User.role == "doctor").first()
+        if not doctor:
+            raise HTTPException(status_code=500, detail="No doctor found to attach to exercise.")
+
+        new_exercise = domain.PatientSpecificExercise(
+            patient_id=patient_id,
+            doctor_id=doctor.id,
+            name=payload.name,
+            description=payload.description,
+            tracked_angles=payload.tracked_angles,
+            target_rom_degrees=payload.target_rom_degrees,
+            reps_per_set=payload.reps_per_set,
+            sets_per_day=payload.sets_per_day,
+            golden_rep_data=payload.golden_rep_data
+        )
+        
+        db.add(new_exercise)
+        db.commit()
+        db.refresh(new_exercise)
+        return new_exercise
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error saving specific exercise: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/patients/{patient_id}/exercises", tags=["clinical"])
+def get_patient_specific_exercises(patient_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieves all custom 3D exercises assigned explicitly to this patient.
+    """
+    exercises = db.query(domain.PatientSpecificExercise).filter(
+        domain.PatientSpecificExercise.patient_id == patient_id
+    ).all()
+    
+    return exercises
 
 
 # ==========================================
@@ -283,12 +333,14 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
             # --- 2-WAY PATIENT VOICE COMMUNICATION TRAP ---
             if "patient_vocal_command" in features:
                 patient_quote = features["patient_vocal_command"]
-                accumulated_errors.append({
+                
+                # Mock a temporary error strictly for the LLM to process their question
+                verbal_intervention = {
                     "type": "Patient Verbal Intervention",
                     "severity": 1.0,
                     "clinical_target": "Listen to Patient",
                     "achieved": f"Patient said: '{patient_quote}'"
-                })
+                }
                 
                 # Generate an immediate, empathetic AI response based on what they said
                 vocal_response = await generate_patient_feedback(
@@ -296,7 +348,7 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
                     exercise=exercise,
                     current_rep=rep_count,
                     target_reps=target_reps,
-                    errors=accumulated_errors,
+                    errors=accumulated_errors + [verbal_intervention],
                     is_fatigued=False,
                     fatigue_metrics=None
                 )
@@ -304,17 +356,25 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
                 await websocket.send_json({
                     "status": "tracking",
                     "lstm_confidence": 1.0,
-                    "errors": accumulated_errors,
+                    "errors": accumulated_errors, # Send real physical errors
                     "llm_feedback": vocal_response,
                     "rep_count": rep_count
                 })
                 
-                # Pause briefly so AI can speak without tracking overlap
-                await asyncio.sleep(3)
+                # Add a cooldown dynamically without sleeping/blocking the entire websocket thread!
+                # This ensures the React loop doesn't fill the memory buffer and drop connection.
+                last_llm_time = time.time() + 3.0
                 continue
 
             # 4. Math extraction and ML Buffering
             if "left_knee_angle" not in features:
+                continue
+                
+            # If the patient's lower body isn't visible, don't hallucinate metrics
+            if not features.get("lower_body_visible", True):
+                # Optionally reset the temporal buffer so we don't mix old and new frames
+                # when they step back into frame
+                buffer = TemporalBuffer(maxlen=30)
                 continue
                 
             current_knee_angle = (features["left_knee_angle"] + features["right_knee_angle"]) / 2.0
@@ -411,6 +471,8 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
                 }
 
                 # 7. Only generate conversational LLM feedback if there are errors and outside cooldown
+                # Rely on lower_body_visible and confidence > 0.85 to filter spam, 
+                # so the app doesn't feel 'dead' when the patient is standing.
                 current_time = time.time()
                 if last_llm_response_for_rep:
                     last_llm_time = current_time # Reset cooldown to prioritize the fatigue/rep completion message
@@ -542,26 +604,90 @@ async def signaling_endpoint(websocket: WebSocket, room_id: str, client_id: str)
         webrtc_rooms[room_id] = {}
         
     webrtc_rooms[room_id][client_id] = websocket
+    peer_count = len(webrtc_rooms[room_id])
+    print(f"🔗 [Signaling] Client '{client_id}' joined room '{room_id}' ({peer_count} peer(s) in room)")
     
     try:
         while True:
             # Receive WebRTC signaling data (Offer, Answer, ICE Candidates)
             data = await websocket.receive_text()
             
+            try:
+                parsed = json.loads(data)
+                msg_type = parsed.get("type", "unknown")
+            except:
+                msg_type = "unparseable"
+            
             # Broadcast the WebRTC signaling data to everyone else in the room
+            recipients = 0
             for cid, conn in webrtc_rooms[room_id].items():
                 if cid != client_id:
                     try:
                         await conn.send_text(data)
+                        recipients += 1
                     except:
                         pass
+            
+            print(f"📡 [Signaling] Room '{room_id}': '{client_id}' sent '{msg_type}' → relayed to {recipients} peer(s)")
+            
     except WebSocketDisconnect:
+        print(f"🔌 [Signaling] Client '{client_id}' disconnected from room '{room_id}'")
         if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
             del webrtc_rooms[room_id][client_id]
             if len(webrtc_rooms[room_id]) == 0:
                 del webrtc_rooms[room_id]
+                print(f"🗑️  [Signaling] Room '{room_id}' is now empty and deleted")
     except Exception as e:
-        print(f"WebRTC Signaling Exception: {e}")
+        print(f"❌ [Signaling] Exception in room '{room_id}' for client '{client_id}': {e}")
         if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
             del webrtc_rooms[room_id][client_id]
 
+# =========================================================
+# CALL REQUEST / NOTIFICATION SYSTEM
+# =========================================================
+# In-memory store: {patient_profile_id: {doctor_name, room_id, timestamp}}
+pending_calls = {}
+
+@app.post("/api/calls/initiate", tags=["calls"])
+def initiate_call(patient_id: int, doctor_name: str = "Doctor"):
+    """Doctor initiates a call. Creates a pending call record for the patient to poll."""
+    pending_calls[patient_id] = {
+        "doctor_name": doctor_name,
+        "room_id": str(patient_id),
+        "timestamp": time.time()
+    }
+    print(f"📞 [Call] {doctor_name} initiated call to patient {patient_id} (room: {patient_id})")
+    return {"status": "ringing", "room_id": str(patient_id)}
+
+@app.get("/api/calls/check/{patient_id}", tags=["calls"])
+def check_incoming_call(patient_id: int):
+    """Patient polls this endpoint to check if there's an incoming call."""
+    call = pending_calls.get(patient_id)
+    if call:
+        # Auto-expire after 60 seconds
+        if time.time() - call["timestamp"] > 60:
+            del pending_calls[patient_id]
+            return {"has_call": False}
+        return {
+            "has_call": True,
+            "doctor_name": call["doctor_name"],
+            "room_id": call["room_id"]
+        }
+    return {"has_call": False}
+
+@app.post("/api/calls/accept/{patient_id}", tags=["calls"])
+def accept_call(patient_id: int):
+    """Patient accepts the call — clears the pending record."""
+    call = pending_calls.pop(patient_id, None)
+    if call:
+        print(f"✅ [Call] Patient {patient_id} accepted call from {call['doctor_name']}")
+        return {"status": "accepted", "room_id": call["room_id"]}
+    return {"status": "no_pending_call"}
+
+@app.post("/api/calls/dismiss/{patient_id}", tags=["calls"])
+def dismiss_call(patient_id: int):
+    """Patient dismisses/rejects the call."""
+    call = pending_calls.pop(patient_id, None)
+    if call:
+        print(f"❌ [Call] Patient {patient_id} dismissed call from {call['doctor_name']}")
+    return {"status": "dismissed"}

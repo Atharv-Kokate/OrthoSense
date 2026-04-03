@@ -23,8 +23,13 @@ export default function DashboardLayout({ role }) {
           <div className="px-4 py-2 rounded-full bg-slate-100 text-slate-600 font-medium text-sm hidden sm:block">
             {role === 'doctor' ? 'Dr. Smith' : 'Sarah Jenkins'}
           </div>
-          <button 
-            onClick={() => navigate('/login')}
+          <button
+            onClick={() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('role');
+              localStorage.removeItem('user_id');
+              navigate('/login', { replace: true });
+            }}
             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg font-semibold text-sm hover:bg-slate-50 transition"
           >
             Log Out

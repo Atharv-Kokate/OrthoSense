@@ -1,15 +1,14 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayCircle, Award, Calendar, Activity, Video } from 'lucide-react';
 import { clinicalService } from '../../services/api';
-import VideoConsultation from '../../components/VideoConsultation';
+import IncomingCallModal from '../../components/IncomingCallModal';
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showConsultation, setShowConsultation] = useState(false);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -19,7 +18,6 @@ export default function PatientDashboard() {
           navigate('/login');
           return;
         }
-        // Using userId to fetch patient dashboard (assumes patient_profile_id == user_id for demo routing)
         const dashboardData = await clinicalService.getPatientDashboard(userId);
         setData(dashboardData);
       } catch (err) {
@@ -32,12 +30,28 @@ export default function PatientDashboard() {
     fetchDashboard();
   }, [navigate]);
 
+  // When patient accepts an incoming call, navigate to session with tele-rehab enabled
+  const handleAcceptCall = (roomId) => {
+    navigate('/patient/session/squat', { 
+      state: { 
+        patientId: data?.patient_id || localStorage.getItem('user_id'), 
+        isTeleRehab: true 
+      } 
+    });
+  };
+
   if (isLoading) return <div className="p-8 text-center text-slate-500">Loading Patient Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500">Error loading dashboard: {error}</div>;
   if (!data) return null;
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
+      {/* Incoming Call Notification - polls the backend */}
+      <IncomingCallModal 
+        patientId={data.patient_id} 
+        onAccept={handleAcceptCall}
+      />
+
       <div className="bg-gradient-to-br from-indigo-600 to-blue-500 rounded-3xl p-8 text-white shadow-lg shadow-indigo-200">
         <h2 className="text-3xl font-bold mb-2">Good morning, {data.patient_name.split(' ')[0]}!</h2>       
         <p className="text-indigo-100 mb-8 max-w-lg leading-relaxed">
@@ -56,9 +70,8 @@ export default function PatientDashboard() {
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-300"></span>
                 <span>Target ROM: {data.current_target_rom}°</span>
               </p>
-              {/* Dynamic Auto-Adapt Message */}
               <div className="mt-2 text-xs font-bold bg-indigo-500/40 border border-indigo-400 text-indigo-50 px-3 py-1 rounded-full inline-block">
-                ? Goal dynamically sized by your Auto-Adaptation Engine!
+                🎯 Goal dynamically sized by your Auto-Adaptation Engine!
               </div>
             </div>
           </div>
@@ -119,7 +132,3 @@ export default function PatientDashboard() {
     </div>
   );
 }
-
-
-
-

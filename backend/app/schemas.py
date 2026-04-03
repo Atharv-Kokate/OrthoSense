@@ -94,3 +94,29 @@ class CustomExerciseResponse(BaseModel):
     tracked_angles: dict
     created_at: datetime
 
+# ==================== PATIENT SPECIFIC EXERCISES ====================
+
+class PatientSpecificExerciseCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    tracked_angles: dict
+    target_rom_degrees: Optional[float] = None
+    reps_per_set: int = 10
+    sets_per_day: int = 3
+    golden_rep_data: List[dict]
+
+class PatientSpecificExerciseResponse(BaseModel):
+    id: int
+    patient_id: int
+    doctor_id: int
+    name: str
+    description: Optional[str] = None
+    tracked_angles: dict
+    target_rom_degrees: Optional[float] = None
+    reps_per_set: int
+    sets_per_day: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

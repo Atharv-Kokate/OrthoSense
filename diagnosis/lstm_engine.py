@@ -64,17 +64,23 @@ class LSTMEngine:
         # 3. Model Inference Execution!
         with torch.no_grad():
             outputs = self.model(tensor_seq)
-            # Find the highest probability class
-            _, predicted = torch.max(outputs.data, 1)
+            # Find the highest probability class using Softmax
+            probabilities = torch.nn.functional.softmax(outputs, dim=1)
+            max_prob, predicted = torch.max(probabilities.data, 1)
             
             class_idx = predicted.item()
             label_string = self.label_map[class_idx]
+            confidence = max_prob.item()
+
+        # If the model is not highly confident, it's just noisy data (e.g. tracking jitter)
+        if confidence < 0.85:
+            return {"errors": [], "confidence": confidence}
             
         # 4. Neural Network Mapping
         if label_string == "forward_lean_error":
-            errors.append({"type": "forward_lean", "severity": 0.9})
+            errors.append({"type": "forward_lean", "severity": confidence})
         elif label_string == "knee_caving_error":
-            errors.append({"type": "imbalance", "severity": 0.95}) 
+            errors.append({"type": "imbalance", "severity": confidence}) 
             # (imbalance maps well to lunge/squat symmetry alerts)
 
-        return {"errors": errors}
+        return {"errors": errors, "confidence": confidence}

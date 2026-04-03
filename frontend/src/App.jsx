@@ -19,7 +19,7 @@ function App() {
           {/* Auth Flow */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Navigate to={localStorage.getItem('role') === 'doctor' ? '/doctor/dashboard' : localStorage.getItem('role') === 'patient' ? '/patient/dashboard' : '/login'} replace />} />
           </Route>
 
           {/* Doctor Flow */}

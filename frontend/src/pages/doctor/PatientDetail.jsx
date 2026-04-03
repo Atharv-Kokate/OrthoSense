@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Activity, Calendar, Award, AlertTriangle, ArrowLeft, Video } from 'lucide-react';
 import VideoConsultation from '../../components/VideoConsultation';
+import { callService } from '../../services/api';
 
 export default function PatientDetail() {
   const { id } = useParams();
@@ -56,7 +57,15 @@ export default function PatientDetail() {
           <button className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none flex items-center justify-center gap-2">
             Export Report
           </button>
-          <button onClick={() => setShowConsultation(true)} className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-400 focus:outline-none flex items-center justify-center gap-2">
+          <button onClick={async () => {
+            // Notify the patient's dashboard about the incoming call
+            try {
+              await callService.initiateCall(parseInt(id), 'Dr. Smith');
+            } catch (err) {
+              console.warn('Could not send call notification:', err);
+            }
+            setShowConsultation(true);
+          }} className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-400 focus:outline-none flex items-center justify-center gap-2">
             <Video size={16} /> Live Consultation
           </button>
           <button className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-800 focus:outline-none">

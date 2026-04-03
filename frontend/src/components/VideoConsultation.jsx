@@ -1,18 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { PhoneOff, Video, Mic, MicOff, VideoOff, Maximize2 } from 'lucide-react';
+import { PhoneOff, Video, Mic, MicOff, User } from 'lucide-react';
 
-export default function VideoConsultation({ roomId, isInitiator, onEndCall, customClass }) {
-  const { localStream, remoteStream, isConnected, initializeConnection, endCall } = useWebRTC(roomId, isInitiator);
+export default function VideoConsultation({ roomId, isInitiator, onEndCall, customClass, sharedStream }) {
+  const { localStream, remoteStream, isConnected, initializeConnection, endCall } = useWebRTC(roomId, isInitiator, sharedStream || null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
   useEffect(() => {
     initializeConnection();
-    return () => {
-      endCall();
-    };
-  }, [initializeConnection, endCall]);
+  }, [initializeConnection]);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -30,6 +27,9 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
     endCall();
     if (onEndCall) onEndCall();
   };
+
+  // Check if local stream has video tracks
+  const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0;
 
   return (
     <div className={`bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 relative w-full flex flex-col ${customClass || 'h-[600px]'}`}>
@@ -49,9 +49,9 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
           </div>
         )}
 
-        {/* Local Video (Picture-in-Picture) */}
+        {/* Local Video (Picture-in-Picture) — Shows avatar when no video track (e.g. Doctor audio-only) */}
         <div className="absolute bottom-24 right-6 w-48 h-64 bg-slate-800 rounded-xl overflow-hidden shadow-xl border-2 border-slate-600 z-10 aspect-[3/4]">
-          {localStream ? (
+          {hasLocalVideo ? (
             <video
               ref={localVideoRef}
               autoPlay
@@ -59,6 +59,19 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
               muted
               className="w-full h-full object-cover bg-black"
             />
+          ) : localStream ? (
+            /* Audio-only mode: show avatar */
+            <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-700 to-slate-800">
+              <div className="w-16 h-16 rounded-full bg-indigo-500/30 flex items-center justify-center mb-2">
+                <User size={32} className="text-indigo-300" />
+              </div>
+              <p className="text-slate-400 text-xs">Audio Only</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="w-1 h-3 bg-indigo-400 rounded-full animate-pulse"></div>
+                <div className="w-1 h-4 bg-indigo-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-1 h-2 bg-indigo-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-500 text-sm">
               Camera Off
@@ -86,7 +99,7 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
       {/* Status Overlay */}
       <div className="absolute top-4 left-4 flex gap-2">
         <div className="px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur-md border border-slate-600 text-white text-sm flex items-center gap-2">
-          <div className={\w-2 h-2 rounded-full \\}></div>
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
           {isConnected ? 'Secure Connection' : 'Connecting...'}
         </div>
       </div>
