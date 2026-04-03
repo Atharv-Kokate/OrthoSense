@@ -527,3 +527,41 @@ def list_custom_exercises(
         
     return db.query(domain.CustomExercise).all()  # Allow patients to see them too if assigned
 
+# =========================================================
+# WEBRTC SIGNALING SERVER (VIRTUAL CLINIC ROOMS)
+# =========================================================
+
+# Rooms dictionary to hold {room_id: {client_id: websocket}}
+webrtc_rooms = {}
+
+@app.websocket("/ws/signaling/{room_id}/{client_id}")
+async def signaling_endpoint(websocket: WebSocket, room_id: str, client_id: str):
+    await websocket.accept()
+    
+    if room_id not in webrtc_rooms:
+        webrtc_rooms[room_id] = {}
+        
+    webrtc_rooms[room_id][client_id] = websocket
+    
+    try:
+        while True:
+            # Receive WebRTC signaling data (Offer, Answer, ICE Candidates)
+            data = await websocket.receive_text()
+            
+            # Broadcast the WebRTC signaling data to everyone else in the room
+            for cid, conn in webrtc_rooms[room_id].items():
+                if cid != client_id:
+                    try:
+                        await conn.send_text(data)
+                    except:
+                        pass
+    except WebSocketDisconnect:
+        if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
+            del webrtc_rooms[room_id][client_id]
+            if len(webrtc_rooms[room_id]) == 0:
+                del webrtc_rooms[room_id]
+    except Exception as e:
+        print(f"WebRTC Signaling Exception: {e}")
+        if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
+            del webrtc_rooms[room_id][client_id]
+

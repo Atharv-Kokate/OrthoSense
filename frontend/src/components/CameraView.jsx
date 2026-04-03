@@ -4,10 +4,12 @@ import { useLocation } from 'react-router-dom';
 import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
 import { useTelemetrySocket } from '../hooks/useTelemetrySocket';
 import { usePoseEngine } from '../hooks/usePoseEngine';
+import VideoConsultation from './VideoConsultation';
 
 export default function CameraView() {
   const location = useLocation();
   const patientId = location.state?.patientId || localStorage.getItem('user_id') || 1;
+  const isTeleRehab = location.state?.isTeleRehab || false;
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
@@ -16,8 +18,8 @@ export default function CameraView() {
   const [isCalibrated, setIsCalibrated] = useState(false);
   const [calibrationHints, setCalibrationHints] = useState("Stand back so your full body is visible.");
 
-  // 1. Establish WebSocket link with the AI Brain API
-  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId);
+  // 1. Establish WebSocket link with the AI Brain API (Mute voice if in Tele-Rehab mode)
+  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, { muteVoice: isTeleRehab });
   const { repCount, feedback, errors } = telemetry;
   // 2. Wire the extracted biomechanical data directly into the socket hook safely
   const handlePoseComputed = useCallback((telemetryPayload) => {
@@ -34,7 +36,7 @@ export default function CameraView() {
         if (isAnkleVisible && isHipVisible && isShoulderVisible) {
           setIsCalibrated(true);
           // Trigger a welcome voice prompt
-          if ('speechSynthesis' in window) {
+          if (!isTeleRehab && 'speechSynthesis' in window) {
             let u = new SpeechSynthesisUtterance("Calibration successful. Let's begin your squats.");
             u.rate = 1.0;
             u.pitch = 1.1;
@@ -122,7 +124,13 @@ export default function CameraView() {
 
       {/* RIGHT COLUMN: Telemetry Sidebar */}
       <div className="w-full md:w-96 flex flex-col gap-4">
-        
+
+        {isTeleRehab && (
+          <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden shadow-slate-200 border border-slate-700 h-[400px] shrink-0 flex flex-col relative w-full">
+            <VideoConsultation roomId={patientId.toString()} isInitiator={false} customClass="h-full rounded-2xl" />
+          </div>
+        )}
+
         {/* REPS CARD */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center justify-center relative">
           <h3 className="text-slate-500 font-semibold mb-2">Total Repetitions</h3>

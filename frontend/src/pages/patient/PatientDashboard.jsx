@@ -1,13 +1,15 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayCircle, Award, Calendar, Activity } from 'lucide-react';
+import { PlayCircle, Award, Calendar, Activity, Video } from 'lucide-react';
 import { clinicalService } from '../../services/api';
+import VideoConsultation from '../../components/VideoConsultation';
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showConsultation, setShowConsultation] = useState(false);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -60,12 +62,21 @@ export default function PatientDashboard() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/patient/session/squat', { state: { patientId: data.patient_id } })} 
-            className="w-full md:w-auto bg-white text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 hover:shadow-lg transition flex items-center justify-center gap-2"
-          >
-            Start Session
-          </button>
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <button
+              onClick={() => navigate('/patient/session/squat', { state: { patientId: data.patient_id } })}
+              className="w-full md:w-auto bg-white text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 hover:shadow-lg transition flex items-center justify-center gap-2"
+            >
+              Start Session
+            </button>
+            <button
+              onClick={() => navigate('/patient/session/squat', { state: { patientId: data.patient_id, isTeleRehab: true } })}
+              className="w-full md:w-auto bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-400 border border-indigo-400 hover:shadow-lg transition flex items-center justify-center gap-2 shadow-inner"
+            >
+              <Video size={20} />
+              Join Live Tele-Rehab
+            </button>
+          </div>
         </div>
       </div>
 

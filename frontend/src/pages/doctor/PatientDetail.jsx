@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Activity, Calendar, Award, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Activity, Calendar, Award, AlertTriangle, ArrowLeft, Video } from 'lucide-react';
+import VideoConsultation from '../../components/VideoConsultation';
 
 export default function PatientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [showConsultation, setShowConsultation] = useState(false);
 
   // Simulated Medical Telemetry Data fetched from Postgres
   const [telemetryData, setTelemetryData] = useState([]);
@@ -51,14 +53,39 @@ export default function PatientDetail() {
           </div>
         </div>
         <div className="flex space-x-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+          <button className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none flex items-center justify-center gap-2">
             Export Report
           </button>
-          <button className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+          <button onClick={() => setShowConsultation(true)} className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-400 focus:outline-none flex items-center justify-center gap-2">
+            <Video size={16} /> Live Consultation
+          </button>
+          <button className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-800 focus:outline-none">
             Adjust Prescription
           </button>
         </div>
       </div>
+
+      {showConsultation && (
+        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+              Live Tele-Rehab Session
+            </h3>
+            <button 
+              onClick={() => setShowConsultation(false)}
+              className="text-gray-500 hover:text-gray-700 transition font-medium"
+            >
+              Close Consultation
+            </button>
+          </div>
+          <VideoConsultation 
+            roomId={id} // The patient ID acts as the unique room
+            isInitiator={true} // Doctor initiates the call
+            onEndCall={() => setShowConsultation(false)} 
+          />
+        </div>
+      )}
 
       {telemetryData.length > 0 && (
         <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-8 rounded-r-xl">

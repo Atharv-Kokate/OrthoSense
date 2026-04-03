@@ -3,7 +3,7 @@ import importedUseWebSocket, { ReadyState } from 'react-use-websocket';
 
 const useWebSocket = importedUseWebSocket?.default || importedUseWebSocket;
 
-export function useTelemetrySocket(patientId) {
+export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
   const socketUrl = `ws://localhost:8000/ws/track/${patientId}`;
   const [status, setStatus] = useState('connecting');
   const [isListening, setIsListening] = useState(false);
@@ -92,14 +92,13 @@ export function useTelemetrySocket(patientId) {
 
         // Voice Feedback Trigger using built-in Text-To-Speech
         if (data.llm_feedback && data.llm_feedback !== lastSpokenFeedback.current) {
-          if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(data.llm_feedback);
-            utterance.rate = 1.0; 
-            utterance.pitch = 1.1; // Make it sound slightly more engaging
-            window.speechSynthesis.speak(utterance);
+            if (!muteVoice && 'speechSynthesis' in window) {
+              const utterance = new SpeechSynthesisUtterance(data.llm_feedback);
+              utterance.rate = 1.0;
+              utterance.pitch = 1.1; // Make it sound slightly more engaging    
+              window.speechSynthesis.speak(utterance);
+            }
             lastSpokenFeedback.current = data.llm_feedback;
-          }
-        }
 
         setTelemetry(prev => ({
           ...prev,
