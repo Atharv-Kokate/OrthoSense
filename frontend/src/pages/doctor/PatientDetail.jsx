@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Activity, Calendar, Award, AlertTriangle, ArrowLeft, Video } from 'lucide-react';
+import RecordExerciseModal from '../../components/RecordExerciseModal';
 import VideoConsultation from '../../components/VideoConsultation';
 import { callService } from '../../services/api';
 
@@ -10,6 +11,8 @@ export default function PatientDetail() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [showConsultation, setShowConsultation] = useState(false);
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [recordingState, setRecordingState] = useState('idle');
 
   // Simulated Medical Telemetry Data fetched from Postgres
   const [telemetryData, setTelemetryData] = useState([]);
@@ -69,10 +72,24 @@ export default function PatientDetail() {
             <Video size={16} /> Live Consultation
           </button>
           <button className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-800 focus:outline-none">
-            Adjust Prescription
-          </button>
+                          Adjust Prescription
+            </button>
+            <button onClick={() => setShowRecordModal(true)} className="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none flex items-center justify-center gap-2">
+              <Activity size={16} /> Record Exercise
+            </button>
+          </div>
         </div>
-      </div>
+
+        {/* Modal for recording custom exercise */}
+        {showRecordModal && (
+           <RecordExerciseModal 
+             patientId={id} 
+             patientName={telemetryData ? 'Sarah Jenkins' : 'Patient'} 
+             onClose={() => setShowRecordModal(false)} 
+           />
+        )}
+
+
 
       {showConsultation && (
         <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

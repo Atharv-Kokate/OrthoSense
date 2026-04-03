@@ -3,8 +3,8 @@ import importedUseWebSocket, { ReadyState } from 'react-use-websocket';
 
 const useWebSocket = importedUseWebSocket?.default || importedUseWebSocket;
 
-export function useTelemetrySocket(patientId, { muteVoice = false } = {}) {
-  const socketUrl = `ws://localhost:8000/ws/track/${patientId}`;
+export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = false } = {}) {
+  const socketUrl = `ws://localhost:8000/ws/track/${exercise}/${patientId}`;
   const [status, setStatus] = useState('connecting');
   const [isListening, setIsListening] = useState(false);
   const [telemetry, setTelemetry] = useState({

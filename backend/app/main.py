@@ -282,8 +282,8 @@ def trigger_adaptation_evaluation(patient_id: int, exercise_type: str = "squat",
 # ==========================================
 # PATIENT WEBSOCKET TELEMETRY ENGINE
 # ==========================================
-@app.websocket("/ws/track/{patient_id}")
-async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session = Depends(get_db)):
+@app.websocket("/ws/track/{exercise}/{patient_id}")
+async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: int, db: Session = Depends(get_db)):
     """
     Main Telemetry Ingestion Engine:
     This WebSocket stays open. The React app streams coordinates at ~30 FPS.
@@ -299,7 +299,7 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
     from sqlalchemy import desc
     current_rx = db.query(domain.ExercisePrescription).filter(
         domain.ExercisePrescription.patient_id == patient_id,
-        domain.ExercisePrescription.exercise_type == "squat"
+        domain.ExercisePrescription.exercise_type == exercise
     ).order_by(desc(domain.ExercisePrescription.created_at)).first()
 
     # Use their clinical target, fallback to generic 100 degrees if not found
@@ -308,7 +308,7 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
     target_reps = current_rx.reps_per_set if current_rx else 10
 
     # 2. Spin up our Deep Learning Brains for this session
-    exercise = "squat" # This could be dynamically requested via URL parameter later
+    # exercise string is obtained from the URL parameter path!
     buffer = TemporalBuffer(maxlen=30)
     expert_lstm = LSTMEngine(exercise=exercise)
 

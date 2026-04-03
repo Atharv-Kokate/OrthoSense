@@ -11,20 +11,30 @@ sys.path.append(models_dir)
 from train_lstm import BiomechanicalLSTM
 
 class LSTMEngine:
-    def __init__(self, exercise="squat",
-                 model_path="../models/squat_expert_model.pth", 
-                 scaler_path="../models/scaler.pkl", 
-                 label_map_path="../models/squat_label_map.json"):
-        
+    def __init__(self, exercise='squat',
+                 model_path='../models/squat_expert_model.pth',
+                 scaler_path='../models/scaler.pkl',
+                 label_map_path='../models/squat_label_map.json'):
+
         self.exercise = exercise
         
+        # --- DYNAMIC EXERCISE INJECTION --- #
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, '..', 'models', f'{exercise}_expert_model.pth')
+        label_map_path = os.path.join(base_dir, '..', 'models', f'{exercise}_label_map.json')
+        
+        if exercise == 'squat':
+             scaler_path = os.path.join(base_dir, '..', 'models', 'scaler.pkl')
+        else:
+             scaler_path = os.path.join(base_dir, '..', 'models', f'{exercise}_scaler.pkl')
+
         if not os.path.exists(model_path):
-            print(f"[Warning] Deep learning weights not found at {model_path}.")
+            print(f'[Warning] Deep learning weights not found at {model_path}.')
             self.ready = False
             return
-            
-        print("🧠 Booting up BiLSTM Diagnostic Subsystem...")
-        
+
+        print(f'🧠 Booting up BiLSTM Diagnostic Subsystem for {exercise}...')
+
         # 1. Load Scaler
         self.scaler = joblib.load(scaler_path)
         

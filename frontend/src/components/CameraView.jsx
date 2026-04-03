@@ -10,6 +10,7 @@ export default function CameraView() {
   const location = useLocation();
   const patientId = location.state?.patientId || localStorage.getItem('user_id') || 1;
   const isTeleRehab = location.state?.isTeleRehab || false;
+  const exercise = location.state?.exercise || 'squat';
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
@@ -34,7 +35,7 @@ export default function CameraView() {
   const [calibrationHints, setCalibrationHints] = useState("Stand back so your full body is visible.");
 
   // 1. Establish WebSocket link with the AI Brain API (Mute voice if in Tele-Rehab mode)
-  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, { muteVoice: isTeleRehab });
+  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, exercise, { muteVoice: isTeleRehab });
   const { repCount, feedback, errors } = telemetry;
   // 2. Wire the extracted biomechanical data directly into the socket hook safely
   const handlePoseComputed = useCallback((telemetryPayload) => {
