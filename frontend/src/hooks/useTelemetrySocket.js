@@ -3,8 +3,9 @@ import importedUseWebSocket, { ReadyState } from 'react-use-websocket';
 
 const useWebSocket = importedUseWebSocket?.default || importedUseWebSocket;
 
-export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = false } = {}) {
-  const socketUrl = `ws://localhost:8000/ws/track/${exercise}/${patientId}`;
+export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = false, language = 'en-US' } = {}) {
+  // Add language parameter to the WebSocket URL so the backend LLM knows how to respond
+  const socketUrl = `ws://localhost:8000/ws/track/${exercise}/${patientId}?lang=${language}`;    
   const [status, setStatus] = useState('connecting');
   const [isListening, setIsListening] = useState(false);
   const [telemetry, setTelemetry] = useState({
@@ -40,7 +41,7 @@ export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = 'en-US';
+    recognition.lang = language;
 
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
@@ -71,7 +72,7 @@ export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = 
     return () => {
       if (recognitionRef.current) recognitionRef.current.abort();
     };
-  }, []);
+  }, [language]);
 
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
@@ -110,6 +111,7 @@ export function useTelemetrySocket(patientId, exercise = 'squat', { muteVoice = 
         if (data.llm_feedback && data.llm_feedback !== lastSpokenFeedback.current) {
             if (!muteVoice && 'speechSynthesis' in window) {
               const utterance = new SpeechSynthesisUtterance(data.llm_feedback);
+              utterance.lang = language;
               utterance.rate = 1.0;
               utterance.pitch = 1.1; // Make it sound slightly more engaging    
               window.speechSynthesis.speak(utterance);

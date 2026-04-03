@@ -26,7 +26,8 @@ async def generate_patient_feedback(
     target_reps: int, 
     errors: list = None, 
     is_fatigued: bool = False, 
-    fatigue_metrics: dict = None
+    fatigue_metrics: dict = None,
+    language: str = "English"
 ) -> str:
     """
     Leverages Groq (Llama 3) to generate dynamic, clinically-grounded, zero-hallucination coaching 
@@ -69,14 +70,15 @@ Intervene immediately. Tell them to safely end their set to prevent injury, and 
 Our biometric sensors just detected the following form errors: {', '.join(error_types)}. 
 Tell them precisely how to correct their form."""
 
-    system_prompt = """You are 'Ortho', an empathetic, professional AI physical therapy assistant.
+    system_prompt = f"""You are 'Ortho', an empathetic, professional AI physical therapy assistant.
 Your goal is to provide concise, real-time verbal coaching.
 Rules:
 1. NEVER hallucinate or guess diagnoses. Rely strictly on the provided real-time session context.
 2. Keep your response to exactly 1 or 2 short sentences max.
-3. Speak directly and warmly to the patient (e.g., "Sarah, try to...").
+3. Speak directly and warmly to the patient (e.g., "{patient_first_name}, try to...").
 4. Be encouraging but medically firm, especially if stopping a session due to fatigue.
-5. Do NOT use markdown formatting. Do NOT say 'Here is your feedback'."""
+5. Do NOT use markdown formatting. Do NOT say 'Here is your feedback'.
+6. IMPORTANT: You must respond ONLY in {language}. If the patient speaks a different language, still respond ONLY in {language}."""
 
     try:
         chat_completion = await current_client.chat.completions.create(
@@ -84,7 +86,7 @@ Rules:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            model="gemma2-9b-it",
+            model="llama3-70b-8192",  # More reliable for multilingual conversational use cases
             temperature=0.2, # Keep it extremely deterministic and professional
         )
         return chat_completion.choices[0].message.content

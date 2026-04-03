@@ -107,6 +107,18 @@ export const clinicalService = {
     });
     if (!res.ok) throw new Error('Failed to load patient dashboard');
     return await res.json();
+  },
+
+  approvePhasePromotion: async (patientId) => {
+    const res = await fetch(`${API_URL}/patients/${patientId}/approve-promotion`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to approve phase');
+    }
+    return await res.json();
   }
 };
 

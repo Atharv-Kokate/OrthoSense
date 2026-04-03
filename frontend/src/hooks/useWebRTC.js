@@ -60,14 +60,18 @@ export function useWebRTC(roomId, isInitiator, externalStream = null) {
                 // Doctor side or standalone — try to get our own camera
                 // Use graceful fallback: video+audio → audio-only → receive-only
                 try {
-                    // Initiator (Doctor) only needs audio — patient's video is what matters
-                    // This also prevents camera conflicts when testing on the same machine
-                    const constraints = isInitiator 
-                        ? { video: false, audio: true }  // Doctor: audio only
-                        : { video: true, audio: true };   // Patient: full media
-                    
+                    // Try full media for both sides by default
+                    let constraints = { video: true, audio: true };
                     console.log(`[WebRTC] Requesting media with constraints:`, constraints);
-                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (e) {
+                         console.warn('Camera busy or unavailable (likely testing on same device), falling back to audio only.', e);
+                         constraints = { video: false, audio: true };
+                         stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    }
+                    
                     ownsStream.current = true;
                 } catch (mediaErr) {
                     console.warn(`[WebRTC] getUserMedia failed: ${mediaErr.message}. Proceeding in receive-only mode.`);

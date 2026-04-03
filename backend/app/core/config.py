@@ -1,5 +1,17 @@
 import os
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
+
+# Explicitly load .env file from varying possible paths
+env_paths = [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"), # usually backend/.env
+    ".env",
+    "backend/.env"
+]
+for path in env_paths:
+    if os.path.exists(path):
+        load_dotenv(dotenv_path=path, override=True)
+        break
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "OrthoSense SaaS API"

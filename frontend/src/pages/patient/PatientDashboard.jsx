@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayCircle, Award, Calendar, Activity, Video } from 'lucide-react';
-import { clinicalService } from '../../services/api';
+import { PlayCircle, Award, Calendar, Activity, Video, Lock, Unlock, CheckCircle } from 'lucide-react';
+import { clinicalService, callService } from '../../services/api';
 import IncomingCallModal from '../../components/IncomingCallModal';
+
+const fetchJourney = async (patientId) => {
+  const res = await fetch(`http://localhost:8000/api/patients/${patientId}/journey`);
+  if (!res.ok) {
+      if (res.status === 404) return { status: 'no_active_program' };
+      throw new Error('Unable to load journey map');
+  }
+  return await res.json();
+};
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [journeyData, setJourneyData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,146 +30,145 @@ export default function PatientDashboard() {
         }
         const dashboardData = await clinicalService.getPatientDashboard(userId);
         setData(dashboardData);
+        
+        try {
+          const journey = await fetchJourney(userId);
+          setJourneyData(journey);
+        } catch (e) {
+          console.warn('Journey map not found', e);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchDashboard();
   }, [navigate]);
 
-// When patient accepts an incoming call, navigate to the dedicated tele-rehab room
-    const handleAcceptCall = (roomId) => {
-      navigate(`/patient/tele-rehab/${roomId}`, {
-        state: {
-          patientId: data?.patient_id || localStorage.getItem('user_id'),
-      } 
-    });
-  };
-
-  if (isLoading) return <div className="p-8 text-center text-slate-500">Loading Patient Dashboard...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error loading dashboard: {error}</div>;
-  if (!data) return null;
+  if (isLoading) return (
+    <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-slate-500 font-medium">Loading your recovery plan...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {/* Incoming Call Notification - polls the backend */}
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <IncomingCallModal 
-        patientId={data.patient_id} 
-        onAccept={handleAcceptCall}
+        patientId={data?.patient_id} 
+        onAccept={(roomId) => navigate(`/patient/tele-rehab/${roomId}`)} 
+        onDismiss={() => {}} 
       />
-
-      <div className="bg-gradient-to-br from-indigo-600 to-blue-500 rounded-3xl p-8 text-white shadow-lg shadow-indigo-200">
-        <h2 className="text-3xl font-bold mb-2">Good morning, {data.patient_name.split(' ')[0]}!</h2>       
-        <p className="text-indigo-100 mb-8 max-w-lg leading-relaxed">
-          You're doing great with your {data.condition} recovery. You have 1 exercise prescribed today to help improve your mobility.
-        </p>
-
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">      
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-inner">
-              <PlayCircle className="text-indigo-600" size={32} />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold tracking-tight">Deep Squats</h3> 
-              <p className="text-indigo-100 flex items-center gap-2 mt-1">      
-                <span>3 Sets of {data.current_reps_per_set} Reps</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-300"></span>
-                <span>Target ROM: {data.current_target_rom}°</span>
-              </p>
-              <div className="mt-2 text-xs font-bold bg-indigo-500/40 border border-indigo-400 text-indigo-50 px-3 py-1 rounded-full inline-block">
-                🎯 Goal dynamically sized by your Auto-Adaptation Engine!
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 w-full md:w-auto">
-            <button
-              onClick={() => navigate('/patient/session/squat', { state: { patientId: data.patient_id } })}
-              className="w-full md:w-auto bg-white text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 hover:shadow-lg transition flex items-center justify-center gap-2"
-            >
-              Start Session
-            </button>
-            <button
-              onClick={() => navigate('/patient/session/squat', { state: { patientId: data.patient_id, isTeleRehab: true } })}
-              className="w-full md:w-auto bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-400 border border-indigo-400 hover:shadow-lg transition flex items-center justify-center gap-2 shadow-inner"
-            >
-              <Video size={20} />
-              Join Live Tele-Rehab
-            </button>
-          </div>
-        </div>
+      
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 bg-gradient-to-br from-indigo-50 to-white">
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome back, {data?.patient_name}!</h1>
+        <p className="text-slate-500 text-lg">Your recovery condition: <span className="font-semibold text-slate-700">{data?.condition}</span></p>
       </div>
 
-            <div className="bg-emerald-600 rounded-3xl p-8 shadow-xl shadow-emerald-200 text-white relative overflow-hidden mt-6">
-        <div className="absolute -right-12 -top-12 opacity-10">
-           <Activity size={200} />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30 hidden sm:block">
-               <PlayCircle size={48} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold tracking-tight">Forward Lunges</h3>
-              <p className="text-emerald-100 flex items-center gap-2 mt-1">
-                <span>3 Sets of 10 Reps</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
-                <span>Target Form: Balanced</span>
-              </p>
-              <div className="mt-2 text-xs font-bold bg-emerald-500/40 border border-emerald-400 text-emerald-50 px-3 py-1 rounded-full inline-block">
-                🦵 Using New Lunge ML Expert Model!
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-slate-500 font-medium flex items-center gap-2"><Award size={18} className="text-indigo-500"/> Average Form Score</span>
           </div>
-          <div className="flex flex-col gap-2 w-full md:w-auto">
-            <button
-              onClick={() => navigate('/patient/session/lunge', { state: { patientId: data.patient_id } })}
-              className="w-full md:w-auto bg-white text-emerald-700 px-8 py-3 rounded-xl font-bold hover:bg-emerald-50 hover:shadow-lg transition flex items-center justify-center gap-2"
-            >
-              Start Lunge Session
-            </button>
+          <div>
+            <h3 className="text-4xl font-bold text-slate-800">{data?.average_form_score_7d || 0}%</h3>
+            <p className="text-sm text-green-600 mt-1 font-medium bg-green-50 inline-block px-2 py-1 rounded-md">Last 7 days</p>
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-4 text-slate-500">
-            <Award className="text-emerald-500" />
-            <h3 className="font-semibold text-slate-800">Your Average Form Score (7 Days)</h3>
-          </div>
-          <div className="text-3xl font-bold text-slate-900 border-l-4 border-emerald-500 pl-4 py-1">
-            {data.average_form_score_7d}%
-          </div>
-          <p className="mt-3 text-sm text-slate-500 flex items-center gap-2">
-             Great accuracy! Keep hitting that standard.
-          </p>
         </div>
         
-        <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-4 text-slate-500">
-            <Activity className="text-blue-500" />
-            <h3 className="font-semibold text-slate-800">Recent Sessions</h3>
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-slate-500 font-medium flex items-center gap-2"><Calendar size={18} className="text-indigo-500"/> Sessions Completed</span>
           </div>
-          <ul className="space-y-4">
-            {data.recent_sessions.length === 0 ? (
-              <li className="text-slate-500 italic text-sm">No sessions captured yet. Start one above!</li>
-            ) : data.recent_sessions.map(session => (
-              <li key={session.session_id} className="flex justify-between items-center border-b border-slate-50 pb-2 last:border-0 last:pb-0">
-                <div>
-                  <div className="text-sm font-bold text-slate-700">{new Date(session.session_date).toLocaleDateString()}</div>
-                  <div className="text-xs text-slate-500">{session.total_reps_completed} Reps Completed</div>
-                </div>
-                <div className="bg-slate-100 px-3 py-1 rounded text-sm text-slate-600 font-semibold shadow-sm">
-                  {session.overall_form_score}% Score
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div>
+            <h3 className="text-4xl font-bold text-slate-800">{data?.recent_sessions?.length || 0}</h3>
+            <p className="text-sm text-slate-500 mt-1">Keep up the good work!</p>
+          </div>
         </div>
       </div>
+
+      <div className="bg-white border text-center border-slate-100 rounded-3xl p-6 shadow-sm overflow-hidden mt-6">
+          <h2 className="text-xl font-bold text-slate-800 mb-4 text-left border-b pb-4">Open Workouts</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button onClick={() => navigate('/patient/session/squat')} className="p-6 bg-slate-50 hover:bg-indigo-50 border border-slate-100 rounded-2xl transition-all group text-left">
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Activity size={24} />
+                      </div>
+                      <div>
+                          <h4 className="font-bold text-slate-800 group-hover:text-indigo-800">Deep Squats</h4>
+                          <p className="text-sm text-slate-500">Free Practice</p>
+                      </div>
+                  </div>
+              </button>
+              <button onClick={() => navigate('/patient/session/lunge')} className="p-6 bg-slate-50 hover:bg-emerald-50 border border-slate-100 rounded-2xl transition-all group text-left">
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Activity size={24} />
+                      </div>
+                      <div>
+                          <h4 className="font-bold text-slate-800 group-hover:text-emerald-800">Forward Lunges</h4>
+                          <p className="text-sm text-slate-500">Free Practice</p>
+                      </div>
+                  </div>
+              </button>
+          </div>
+      </div>
+
+      {journeyData && journeyData.status !== 'no_active_program' ? (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+            <h2 className="text-2xl font-bold text-indigo-900 mb-6">Your Recovery Journey</h2>
+
+            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-12 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-1 before:bg-gradient-to-b before:from-indigo-400 before:via-indigo-200 before:to-slate-200">
+                {journeyData.phases?.map((phase, idx) => {
+                    const isCompleted = idx < journeyData.phases.findIndex(p => p.is_current);
+                    const isCurrent = phase.is_current;
+                    const isLocked = !isCompleted && !isCurrent;
+                    
+                    return (
+                        <div key={idx} className={`relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group ${isCurrent ? 'is-active' : ''}`}>
+                            <div className={`flex items-center justify-center w-24 h-24 rounded-full border-4 shadow-xl shrink-0 z-10 ${isCompleted ? 'bg-emerald-500 border-emerald-200 text-white' : isCurrent ? 'bg-indigo-600 border-indigo-200 text-white ring-4 ring-indigo-100 animate-pulse' : 'bg-slate-200 border-slate-300 text-slate-400'} md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2`}>
+                                {isCompleted ? <CheckCircle size={32}/> : isCurrent ? <Unlock size={32}/> : <Lock size={32}/>}
+                            </div>
+
+                            <div className="w-[calc(100%-7rem)] md:w-[calc(50%-4rem)] p-6 bg-white rounded-3xl shadow flex flex-col gap-3">
+                                <span className={`font-black uppercase tracking-wider text-xs ${isCompleted ? 'text-emerald-500' : isCurrent ? 'text-indigo-600' : 'text-slate-400'}`}>Phase {phase.phase_order}</span>
+                                <h3 className="font-bold text-xl text-slate-800">{phase.name}</h3>
+                                <p className="text-slate-500 text-sm leading-relaxed">{phase.description}</p>
+                                
+                                {isCurrent && (
+                                    <button
+                                        onClick={() => navigate(`/patient/session/${phase.exercises[0]?.type || 'squat'}`)}
+                                        className="mt-4 flex items-center gap-2 justify-center w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
+                                    >
+                                        <PlayCircle size={20} />
+                                        Start Phase Workout
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            
+            {journeyData.is_ready_for_next_phase && (
+                <div className="mt-12 bg-white/80 backdrop-blur border border-emerald-500/30 rounded-2xl p-6 text-center shadow-lg">
+                    <Award size={48} className="text-emerald-500 mx-auto mb-3 animate-bounce"/>
+                    <h3 className="text-xl font-bold text-emerald-900 mb-1">Phase Graduated!</h3>
+                    <p className="text-emerald-700">Excellent form and consistency. Your doctor has been notified to unlock your next phase!</p>
+                </div>
+            )}
+        </div>
+      ) : (
+          <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center">
+              <Calendar className="mx-auto text-slate-300 w-16 h-16 mb-4" />
+              <h2 className="text-xl font-semibold text-slate-700">No Program Assigned Yet</h2>
+              <p className="text-slate-500 mt-2">Your doctor will assign a gamified journey here soon.</p>
+          </div>
+      )}
     </div>
   );
 }

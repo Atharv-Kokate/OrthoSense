@@ -114,3 +114,66 @@ class RepetitionLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("TelemetrySession", back_populates="reps")
+
+class RehabProgram(Base):
+    __tablename__ = "rehab_programs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.id"))
+    name = Column(String, nullable=False)
+    description = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    doctor = relationship("User", foreign_keys=[doctor_id])
+    phases = relationship("ProgramPhase", back_populates="program", cascade="all, delete-orphan")
+
+class ProgramPhase(Base):
+    __tablename__ = "program_phases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    program_id = Column(Integer, ForeignKey("rehab_programs.id"))
+    phase_order = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(String)
+    
+    program = relationship("RehabProgram", back_populates="phases")
+    exercises = relationship("PhaseExercise", back_populates="phase", cascade="all, delete-orphan")
+    rules = relationship("PhaseProgressionRule", back_populates="phase", cascade="all, delete-orphan")
+
+class PhaseExercise(Base):
+    __tablename__ = "phase_exercises"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phase_id = Column(Integer, ForeignKey("program_phases.id"))
+    exercise_type = Column(String, nullable=False) 
+    target_rom_degrees = Column(Float, nullable=True)
+    reps_per_set = Column(Integer, default=10)
+    sets_per_day = Column(Integer, default=3)
+    
+    phase = relationship("ProgramPhase", back_populates="exercises")
+
+class PhaseProgressionRule(Base):
+    __tablename__ = "phase_progression_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phase_id = Column(Integer, ForeignKey("program_phases.id"))
+    metric = Column(String, nullable=False) # 'avg_form_score', 'max_rom'
+    operator = Column(String, nullable=False) # '>=', '<='
+    target_value = Column(Float, nullable=False)
+    sessions_required = Column(Integer, default=3)
+    
+    phase = relationship("ProgramPhase", back_populates="rules")
+
+class PatientProgram(Base):
+    __tablename__ = "patient_programs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patient_profiles.id"))
+    program_id = Column(Integer, ForeignKey("rehab_programs.id"))
+    current_phase_id = Column(Integer, ForeignKey("program_phases.id"), nullable=True)
+    start_date = Column(DateTime(timezone=True), server_default=func.now())
+    is_ready_for_next_phase = Column(Boolean, default=False)
+    
+    patient = relationship("PatientProfile")
+    program = relationship("RehabProgram")
+    current_phase = relationship("ProgramPhase")

@@ -28,28 +28,35 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
     if (onEndCall) onEndCall();
   };
 
-  // Check if local stream has video tracks
-  const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0;
+  // Check if streams have video tracks
+  const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0; 
+  const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
 
   return (
-    <div className={`bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 relative w-full flex flex-col ${customClass || 'h-[600px]'}`}>
+    <div className={`bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 relative w-full flex flex-col ${customClass || 'h-[600px]'}`}> 
       <div className="flex-1 relative flex items-center justify-center bg-black">
         {/* Remote Video (Full Size) */}
         {remoteStream ? (
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="text-slate-500 flex flex-col items-center">
-            <div className="w-16 h-16 border-4 border-t-indigo-500 border-slate-700 rounded-full animate-spin mb-4"></div>
-            <p>Waiting for other party to join...</p>
-          </div>
-        )}
+          hasRemoteVideo ? (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <div className="w-32 h-32 bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                <User size={64} className="text-indigo-400" />
+              </div>
+              <p className="text-xl font-semibold">Patient Audio Only</p>
+              <p className="text-sm mt-2 opacity-50">Camera unavailable or muted</p>
+              <audio ref={remoteVideoRef} autoPlay />
+            </div>
+          )
+        ) : null}
 
-        {/* Local Video (Picture-in-Picture) — Shows avatar when no video track (e.g. Doctor audio-only) */}
+        {/* Local Video (Picture-in-Picture) */}
         <div className="absolute bottom-24 right-6 w-48 h-64 bg-slate-800 rounded-xl overflow-hidden shadow-xl border-2 border-slate-600 z-10 aspect-[3/4]">
           {hasLocalVideo ? (
             <video
@@ -61,7 +68,7 @@ export default function VideoConsultation({ roomId, isInitiator, onEndCall, cust
             />
           ) : localStream ? (
             /* Audio-only mode: show avatar */
-            <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-700 to-slate-800">
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <div className="w-16 h-16 rounded-full bg-indigo-500/30 flex items-center justify-center mb-2">
                 <User size={32} className="text-indigo-300" />
               </div>

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { useLocation, useParams } from 'react-router-dom';
-import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff, Globe } from 'lucide-react';
 import { useTelemetrySocket } from '../hooks/useTelemetrySocket';
 import { usePoseEngine } from '../hooks/usePoseEngine';
 
@@ -16,6 +16,9 @@ export default function CameraView() {
 
   // Capture the webcam's MediaStream so it can be SHARED with WebRTC (avoid 'Device in use' error)
   const [webcamStream, setWebcamStream] = useState(null);
+  
+  // Multilingual preference state
+  const [language, setLanguage] = useState('en-IN');
 
   useEffect(() => {
     // Poll until react-webcam has initialized the video and its srcObject is available
@@ -34,7 +37,7 @@ export default function CameraView() {
   const [calibrationHints, setCalibrationHints] = useState("Stand back so your full body is visible.");
 
   // 1. Establish WebSocket link with the AI Brain API (Mute voice if in Tele-Rehab mode)
-  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, exercise);
+  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, exercise, { muteVoice: false, language });
   const { repCount, feedback, errors } = telemetry;
   // 2. Wire the extracted biomechanical data directly into the socket hook safely
   const handlePoseComputed = useCallback((telemetryPayload) => {
@@ -95,6 +98,18 @@ export default function CameraView() {
             <span className="text-sm font-semibold capitalize text-slate-500">
               {!isCalibrated ? 'Calibrating...' : status}
             </span>
+            <div className="ml-4 flex items-center bg-slate-100 rounded-lg border border-slate-200 px-2 py-1 gap-2">
+              <Globe size={16} className="text-indigo-500" />
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-transparent text-sm text-slate-700 font-semibold focus:outline-none focus:ring-0 select-none appearance-none cursor-pointer"
+              >
+                <option value="en-IN">English</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="mr-IN">Marathi</option>
+              </select>
+            </div>
           </div>
         </div>
 

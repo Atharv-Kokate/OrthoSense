@@ -120,3 +120,51 @@ class PatientSpecificExerciseResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+
+# ==================== PROGRAMS ====================
+class PhaseExerciseResponse(BaseModel):
+    id: int
+    exercise_type: str
+    target_rom_degrees: Optional[float]
+    reps_per_set: int
+    sets_per_day: int
+    class Config:
+        from_attributes = True
+
+class PhaseProgressionRuleResponse(BaseModel):
+    id: int
+    metric: str
+    operator: str
+    target_value: float
+    sessions_required: int
+    class Config:
+        from_attributes = True
+
+class ProgramPhaseResponse(BaseModel):
+    id: int
+    phase_order: int
+    name: str
+    description: Optional[str]
+    exercises: List[PhaseExerciseResponse] = []
+    rules: List[PhaseProgressionRuleResponse] = []
+    class Config:
+        from_attributes = True
+
+class RehabProgramResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    phases: List[ProgramPhaseResponse] = []
+    class Config:
+        from_attributes = True
+
+class PatientProgramResponse(BaseModel):
+    id: int
+    program_id: int
+    current_phase_id: Optional[int]
+    is_ready_for_next_phase: bool
+    program: RehabProgramResponse
+    current_phase: Optional[ProgramPhaseResponse]
+    class Config:
+        from_attributes = True

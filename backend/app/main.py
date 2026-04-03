@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import time
+import asyncio
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, Depends, WebSocketDisconnect, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -279,11 +280,13 @@ def trigger_adaptation_evaluation(patient_id: int, exercise_type: str = "squat",
         print(f"Error executing adaptation engine: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+from agents.decision_agent import DecisionAgent
+
 # ==========================================
 # PATIENT WEBSOCKET TELEMETRY ENGINE
 # ==========================================
 @app.websocket("/ws/track/{exercise}/{patient_id}")
-async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: int, db: Session = Depends(get_db)):
+async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: int, lang: str = "en-IN", db: Session = Depends(get_db)):
     """
     Main Telemetry Ingestion Engine:
     This WebSocket stays open. The React app streams coordinates at ~30 FPS.
@@ -331,40 +334,48 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
             print(f"RAW DATA: {raw_data[:200]}")
             features = json.loads(raw_data)
             
-            # --- 2-WAY PATIENT VOICE COMMUNICATION TRAP ---
+            # --- 2-WAY PATIENT VOICE COMMUNICATION TRAP (BACKGROUND) ---
             if "patient_vocal_command" in features:
                 patient_quote = features["patient_vocal_command"]
                 
-                # Mock a temporary error strictly for the LLM to process their question
-                verbal_intervention = {
-                    "type": "Patient Verbal Intervention",
-                    "severity": 1.0,
-                    "clinical_target": "Listen to Patient",
-                    "achieved": f"Patient said: '{patient_quote}'"
-                }
+                # We process the LLM response in the background to not freeze the tracking
+                async def process_vocal_command(quote, patient_name, exercise, rep_count, target_reps, errors):
+                    verbal_intervention = {
+                        "type": "Patient Verbal Intervention",
+                        "severity": 1.0,
+                        "clinical_target": "Listen to Patient",
+                        "achieved": f"Patient said: '{quote}'"
+                    }
+                    
+                    vocal_response = await generate_patient_feedback(
+                        patient_first_name=patient_name,
+                        exercise=exercise,
+                        current_rep=rep_count,
+                        target_reps=target_reps,
+                        errors=errors + [verbal_intervention],
+                        is_fatigued=False,
+                        fatigue_metrics=None,
+                        language=lang
+                    )
+                    
+                    try:
+                        await websocket.send_json({
+                            "status": "tracking",
+                            "lstm_confidence": 1.0,
+                            "errors": errors, 
+                            "llm_feedback": vocal_response,
+                            "rep_count": rep_count
+                        })
+                    except Exception as e:
+                        print("Error sending async vocal response:", e)
+
+                asyncio.create_task(process_vocal_command(
+                    patient_quote, patient_name, exercise, rep_count, target_reps, accumulated_errors.copy()
+                ))
                 
-                # Generate an immediate, empathetic AI response based on what they said
-                vocal_response = await generate_patient_feedback(
-                    patient_first_name=patient_name,
-                    exercise=exercise,
-                    current_rep=rep_count,
-                    target_reps=target_reps,
-                    errors=accumulated_errors + [verbal_intervention],
-                    is_fatigued=False,
-                    fatigue_metrics=None
-                )
-                
-                await websocket.send_json({
-                    "status": "tracking",
-                    "lstm_confidence": 1.0,
-                    "errors": accumulated_errors, # Send real physical errors
-                    "llm_feedback": vocal_response,
-                    "rep_count": rep_count
-                })
-                
-                # Add a cooldown dynamically without sleeping/blocking the entire websocket thread!
-                # This ensures the React loop doesn't fill the memory buffer and drop connection.
-                last_llm_time = time.time() + 3.0
+                # Record a tiny timeout so it doesn't try to send regular feedback too soon 
+                # but continues the tracking loop immediately
+                last_llm_time = time.time() + 2.0
                 continue
 
             # 4. Math extraction and ML Buffering
@@ -429,7 +440,8 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
                             target_reps=target_reps,
                             errors=accumulated_errors,
                             is_fatigued=True,
-                            fatigue_metrics=fatigue_metrics
+                            fatigue_metrics=fatigue_metrics,
+                            language=lang
                         )
                     elif accumulated_errors:
                         last_llm_response_for_rep = await generate_patient_feedback(
@@ -439,7 +451,8 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
                             target_reps=target_reps,
                             errors=accumulated_errors,
                             is_fatigued=False,
-                            fatigue_metrics=None
+                            fatigue_metrics=None,
+                            language=lang
                         )
 
                     # Write to Medical Record Database!
@@ -478,6 +491,9 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
                 if last_llm_response_for_rep:
                     last_llm_time = current_time # Reset cooldown to prioritize the fatigue/rep completion message
                 elif errors and (current_time - last_llm_time > feedback_cooldown):
+                    # In a true deployment, we inject decision_agent logic here to filter 
+                    # and pick the highest severity instead of raw errors list to stop spamming.
+                    # e.g., highest_severity_error = decision_agent.decide({"errors": errors}, buffer.history)
                     natural_response = await generate_patient_feedback(
                         patient_first_name=patient_name,
                         exercise=exercise,
@@ -485,7 +501,8 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
                         target_reps=target_reps,
                         errors=errors,
                         is_fatigued=False,
-                        fatigue_metrics=None
+                        fatigue_metrics=None,
+                        language=lang
                     )
                     response_payload["llm_feedback"] = natural_response
                     last_llm_response_for_rep = natural_response # save to log in DB at end of rep
@@ -692,3 +709,83 @@ def dismiss_call(patient_id: int):
     if call:
         print(f" [Call] Patient {patient_id} dismissed call from {call['doctor_name']}")
     return {"status": "dismissed"}
+
+from app.models.domain import RehabProgram, ProgramPhase, PhaseExercise, PhaseProgressionRule, PatientProgram
+# ==================== MACRO-PROGRESSION APIS ====================
+
+@app.get("/api/programs", tags=["Progression"])
+def get_rehab_programs(db: Session = Depends(get_db)):
+    """Fetch all available rehab templates for the doctor to assign."""
+    programs = db.query(RehabProgram).all()
+    return programs
+
+@app.post("/api/patients/{patient_id}/assign-program", tags=["Progression"])
+def assign_program(patient_id: int, program_id: int, db: Session = Depends(get_db)):
+    """Assign a program to a patient."""
+    program = db.query(RehabProgram).filter(RehabProgram.id == program_id).first()
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+        
+    first_phase = db.query(ProgramPhase).filter(ProgramPhase.program_id == program_id).order_by(ProgramPhase.phase_order.asc()).first()
+    
+    patient_prog = PatientProgram(
+        patient_id=patient_id,
+        program_id=program_id,
+        current_phase_id=first_phase.id if first_phase else None
+    )
+    db.add(patient_prog)
+    db.commit()
+    return {"status": "success", "message": "Program assigned."}
+
+@app.get("/api/patients/{patient_id}/journey", tags=["Progression"])
+def get_patient_journey(patient_id: int, db: Session = Depends(get_db)):
+    """Fetch the patient's active program, current phase, and all phases to render the Gamified Map."""
+    patient_prog = db.query(PatientProgram).filter(PatientProgram.patient_id == patient_id).first()
+    if not patient_prog:
+        return {"status": "no_active_program"}
+        
+    program = db.query(RehabProgram).filter(RehabProgram.id == patient_prog.program_id).first()
+    phases = db.query(ProgramPhase).filter(ProgramPhase.program_id == program.id).order_by(ProgramPhase.phase_order.asc()).all()
+    
+    phases_data = []
+    for p in phases:
+        exercises = db.query(PhaseExercise).filter(PhaseExercise.phase_id == p.id).all()
+        phases_data.append({
+            "id": p.id,
+            "phase_order": p.phase_order,
+            "name": p.name,
+            "description": p.description,
+            "exercises": [{"type": e.exercise_type, "target_rom": e.target_rom_degrees, "reps": e.reps_per_set} for e in exercises],
+            "is_current": p.id == patient_prog.current_phase_id,
+            "is_unlocked": p.phase_order <= (patient_prog.current_phase.phase_order if patient_prog.current_phase else 0)
+        })
+        
+    return {
+        "program_name": program.name,
+        "is_ready_for_next_phase": patient_prog.is_ready_for_next_phase,
+        "current_phase_id": patient_prog.current_phase_id,
+        "phases": phases_data
+    }
+
+@app.post("/api/patients/{patient_id}/approve-promotion", tags=["Progression"])
+def approve_promotion(patient_id: int, db: Session = Depends(get_db)):
+    """Doctor approves a patient's promotion to the next phase."""
+    patient_prog = db.query(PatientProgram).filter(PatientProgram.patient_id == patient_id).first()
+    if not patient_prog or not patient_prog.is_ready_for_next_phase:
+        raise HTTPException(status_code=400, detail="Patient not ready for promotion.")
+        
+    current_phase = db.query(ProgramPhase).filter(ProgramPhase.id == patient_prog.current_phase_id).first()
+    next_phase = db.query(ProgramPhase).filter(
+        ProgramPhase.program_id == patient_prog.program_id,
+        ProgramPhase.phase_order > current_phase.phase_order
+    ).order_by(ProgramPhase.phase_order.asc()).first()
+    
+    if next_phase:
+        patient_prog.current_phase_id = next_phase.id
+        patient_prog.is_ready_for_next_phase = False
+        db.commit()
+        return {"status": "success", "message": "Patient promoted to next phase."}
+    else:
+        patient_prog.status = "completed"
+        db.commit()
+        return {"status": "success", "message": "Program completed!"}
