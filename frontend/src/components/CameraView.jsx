@@ -4,14 +4,12 @@ import { useLocation, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
 import { useTelemetrySocket } from '../hooks/useTelemetrySocket';
 import { usePoseEngine } from '../hooks/usePoseEngine';
-import VideoConsultation from './VideoConsultation';
 
 export default function CameraView() {
   const location = useLocation();
   const { exerciseType } = useParams();
   const patientId = location.state?.patientId || localStorage.getItem('user_id') || 1;
-  const isTeleRehab = location.state?.isTeleRehab || false;
-  const exercise = exerciseType || location.state?.exercise || 'squat';
+    const exercise = exerciseType || location.state?.exercise || 'squat';
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
@@ -36,7 +34,7 @@ export default function CameraView() {
   const [calibrationHints, setCalibrationHints] = useState("Stand back so your full body is visible.");
 
   // 1. Establish WebSocket link with the AI Brain API (Mute voice if in Tele-Rehab mode)
-  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, exercise, { muteVoice: isTeleRehab });
+  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId, exercise);
   const { repCount, feedback, errors } = telemetry;
   // 2. Wire the extracted biomechanical data directly into the socket hook safely
   const handlePoseComputed = useCallback((telemetryPayload) => {
@@ -53,7 +51,7 @@ export default function CameraView() {
         if (isAnkleVisible && isHipVisible && isShoulderVisible) {
           setIsCalibrated(true);
           // Trigger a welcome voice prompt
-          if (!isTeleRehab && 'speechSynthesis' in window) {
+          if ('speechSynthesis' in window) {
             let u = new SpeechSynthesisUtterance("Calibration successful. Let's begin your squats.");
             u.rate = 1.0;
             u.pitch = 1.1;
@@ -142,23 +140,7 @@ export default function CameraView() {
       {/* RIGHT COLUMN: Telemetry Sidebar */}
       <div className="w-full md:w-96 flex flex-col gap-4">
 
-        {isTeleRehab && (
-          <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden shadow-slate-200 border border-slate-700 h-[400px] shrink-0 flex flex-col relative w-full">
-            {webcamStream ? (
-              <VideoConsultation 
-                roomId={patientId.toString()} 
-                isInitiator={false} 
-                customClass="h-full rounded-2xl"
-                sharedStream={webcamStream}  
-              />
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                <div className="w-12 h-12 border-4 border-t-indigo-500 border-slate-700 rounded-full animate-spin mb-4"></div>
-                <p className="text-sm">Connecting camera for consultation...</p>
-              </div>
-            )}
-          </div>
-        )}
+        
 
         {/* REPS CARD */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center justify-center relative">

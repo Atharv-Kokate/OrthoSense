@@ -1,0 +1,1 @@
+import sys; txt = open('frontend/src/components/CameraView.jsx').read(); txt = txt.replace('if (!isTeleRehab && \'speechSynthesis\' in window)', 'if (\'speechSynthesis\' in window)'); open('frontend/src/components/CameraView.jsx','w').write(txt)

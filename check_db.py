@@ -1,0 +1,1 @@
+import sqlite3; conn = sqlite3.connect('orthosense.db'); c = conn.cursor(); print(c.execute('SELECT id, exercise_type, reps_per_set FROM prescriptions').fetchall())

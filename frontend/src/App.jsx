@@ -9,6 +9,7 @@ import PatientDashboard from './pages/patient/PatientDashboard';
 import PatientDetail from './pages/doctor/PatientDetail';
 import GoldenRepCapture from './pages/doctor/GoldenRepCapture';
 import CameraView from './components/CameraView';
+import TeleRehabRoom from './pages/patient/TeleRehabRoom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
@@ -31,7 +32,10 @@ function App() {
 
           {/* Patient Flow */}
           <Route element={<DashboardLayout role="patient" />}>
-            <Route path="/patient/dashboard" element={<PatientDashboard />} />            {/* The AI Session view */}
+            <Route path="/patient/dashboard" element={<PatientDashboard />} />
+            {/* The Tele-Rehab Standalone Room */}
+            <Route path="/patient/tele-rehab/:roomId" element={<TeleRehabRoom />} />
+            {/* The AI Session view */}
             <Route path="/patient/session/:exerciseType" element={<ErrorBoundary><CameraView /></ErrorBoundary>} />
           </Route>
         </Routes>

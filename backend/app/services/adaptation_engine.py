@@ -81,7 +81,7 @@ def evaluate_patient_adaptation(db: Session, patient_id: int, exercise_type: str
     if form_score >= prog_threshold and actual_reps >= target_reps and avg_rom >= (target_rom - 5.0):
         if target_rom < 120.0:  # Assuming maximum healthy knee flexion context
             new_target_rom += rom_increment
-            audit_reason = f"Progressed ROM by {rom_increment}° due to high form score ({form_score}%) in phase > {days_post_op} days."
+            audit_reason = f"Progressed ROM by {rom_increment} due to high form score ({form_score}%) in phase > {days_post_op} days."
         elif target_reps < 15:
             new_reps_per_set += reps_increment
             audit_reason = f"Progressed Reps by {reps_increment} due to high form score ({form_score}%) in phase > {days_post_op} days."
@@ -91,7 +91,7 @@ def evaluate_patient_adaptation(db: Session, patient_id: int, exercise_type: str
     elif form_score < regress_threshold or avg_rom < (target_rom - 15.0):
         if target_rom > 60.0:
             new_target_rom -= 10.0
-            audit_reason = f"Regressed ROM by 10° due to low form score ({form_score}%) or restricted motion."
+            audit_reason = f"Regressed ROM by 10 due to low form score ({form_score}%) or restricted motion."
         elif target_reps > 5:
             new_reps_per_set -= 2
             audit_reason = f"Regressed Reps by 2 due to low form score ({form_score}%)."

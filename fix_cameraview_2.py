@@ -1,0 +1,1 @@
+import re; txt = open('frontend/src/components/CameraView.jsx').read(); txt = re.sub(r'\{isTeleRehab && \(\s*<div className=.bg-slate-900.*?\s*</div\>\s*\)\}', '', txt, flags=re.DOTALL); open('frontend/src/components/CameraView.jsx','w').write(txt)

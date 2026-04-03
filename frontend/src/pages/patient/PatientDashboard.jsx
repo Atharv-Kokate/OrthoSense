@@ -30,12 +30,11 @@ export default function PatientDashboard() {
     fetchDashboard();
   }, [navigate]);
 
-  // When patient accepts an incoming call, navigate to session with tele-rehab enabled
-  const handleAcceptCall = (roomId) => {
-    navigate('/patient/session/squat', { 
-      state: { 
-        patientId: data?.patient_id || localStorage.getItem('user_id'), 
-        isTeleRehab: true 
+// When patient accepts an incoming call, navigate to the dedicated tele-rehab room
+    const handleAcceptCall = (roomId) => {
+      navigate(`/patient/tele-rehab/${roomId}`, {
+        state: {
+          patientId: data?.patient_id || localStorage.getItem('user_id'),
       } 
     });
   };

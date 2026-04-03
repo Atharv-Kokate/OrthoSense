@@ -328,6 +328,7 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
         while True:
             # 3. Receive 3D mathematical stream from React Browser Sensor
             raw_data = await websocket.receive_text()
+            print(f"RAW DATA: {raw_data[:200]}")
             features = json.loads(raw_data)
             
             # --- 2-WAY PATIENT VOICE COMMUNICATION TRAP ---
@@ -518,13 +519,13 @@ async def websocket_endpoint(websocket: WebSocket, exercise: str, patient_id: in
     except WebSocketDisconnect:
         print(f"Patient {patient_id} Tracking Session Ended cleanly.")
         
-        # 🔥 Trigger the auto-adaptation engine automatically upon session completion!
+        #  Trigger the auto-adaptation engine automatically upon session completion!
         try:
-            new_rx = evaluate_patient_adaptation(db, patient_id, "squat")
+            new_rx = evaluate_patient_adaptation(db, patient_id, exercise)
             if new_rx:
-                print(f"✅ AI Engine dynamically prescribed new ROM: {new_rx.target_rom_degrees}° | Reps: {new_rx.reps_per_set} for Patient {patient_id}")
+                print(f" AI Engine dynamically prescribed new ROM: {new_rx.target_rom_degrees} | Reps: {new_rx.reps_per_set} for Patient {patient_id}")
             else:
-                print(f"ℹ️ AI Engine analyzed session for Patient {patient_id}. Existing prescription remains optimal.")
+                print(f" AI Engine analyzed session for Patient {patient_id}. Existing prescription remains optimal.")
         except Exception as adapt_err:
             print(f"Adaptation Engine Execution Error safely caught: {adapt_err}")
 
@@ -605,7 +606,7 @@ async def signaling_endpoint(websocket: WebSocket, room_id: str, client_id: str)
         
     webrtc_rooms[room_id][client_id] = websocket
     peer_count = len(webrtc_rooms[room_id])
-    print(f"🔗 [Signaling] Client '{client_id}' joined room '{room_id}' ({peer_count} peer(s) in room)")
+    print(f" [Signaling] Client '{client_id}' joined room '{room_id}' ({peer_count} peer(s) in room)")
     
     try:
         while True:
@@ -628,17 +629,17 @@ async def signaling_endpoint(websocket: WebSocket, room_id: str, client_id: str)
                     except:
                         pass
             
-            print(f"📡 [Signaling] Room '{room_id}': '{client_id}' sent '{msg_type}' → relayed to {recipients} peer(s)")
+            print(f" [Signaling] Room '{room_id}': '{client_id}' sent '{msg_type}'  relayed to {recipients} peer(s)")
             
     except WebSocketDisconnect:
-        print(f"🔌 [Signaling] Client '{client_id}' disconnected from room '{room_id}'")
+        print(f" [Signaling] Client '{client_id}' disconnected from room '{room_id}'")
         if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
             del webrtc_rooms[room_id][client_id]
             if len(webrtc_rooms[room_id]) == 0:
                 del webrtc_rooms[room_id]
-                print(f"🗑️  [Signaling] Room '{room_id}' is now empty and deleted")
+                print(f"  [Signaling] Room '{room_id}' is now empty and deleted")
     except Exception as e:
-        print(f"❌ [Signaling] Exception in room '{room_id}' for client '{client_id}': {e}")
+        print(f" [Signaling] Exception in room '{room_id}' for client '{client_id}': {e}")
         if room_id in webrtc_rooms and client_id in webrtc_rooms[room_id]:
             del webrtc_rooms[room_id][client_id]
 
@@ -656,7 +657,7 @@ def initiate_call(patient_id: int, doctor_name: str = "Doctor"):
         "room_id": str(patient_id),
         "timestamp": time.time()
     }
-    print(f"📞 [Call] {doctor_name} initiated call to patient {patient_id} (room: {patient_id})")
+    print(f" [Call] {doctor_name} initiated call to patient {patient_id} (room: {patient_id})")
     return {"status": "ringing", "room_id": str(patient_id)}
 
 @app.get("/api/calls/check/{patient_id}", tags=["calls"])
@@ -677,10 +678,10 @@ def check_incoming_call(patient_id: int):
 
 @app.post("/api/calls/accept/{patient_id}", tags=["calls"])
 def accept_call(patient_id: int):
-    """Patient accepts the call — clears the pending record."""
+    """Patient accepts the call  clears the pending record."""
     call = pending_calls.pop(patient_id, None)
     if call:
-        print(f"✅ [Call] Patient {patient_id} accepted call from {call['doctor_name']}")
+        print(f" [Call] Patient {patient_id} accepted call from {call['doctor_name']}")
         return {"status": "accepted", "room_id": call["room_id"]}
     return {"status": "no_pending_call"}
 
@@ -689,5 +690,5 @@ def dismiss_call(patient_id: int):
     """Patient dismisses/rejects the call."""
     call = pending_calls.pop(patient_id, None)
     if call:
-        print(f"❌ [Call] Patient {patient_id} dismissed call from {call['doctor_name']}")
+        print(f" [Call] Patient {patient_id} dismissed call from {call['doctor_name']}")
     return {"status": "dismissed"}

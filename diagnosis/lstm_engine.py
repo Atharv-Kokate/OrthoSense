@@ -33,7 +33,7 @@ class LSTMEngine:
             self.ready = False
             return
 
-        print(f'🧠 Booting up BiLSTM Diagnostic Subsystem for {exercise}...')
+        print(f"Booting up BiLSTM Diagnostic Subsystem for {exercise}...")
 
         # 1. Load Scaler
         self.scaler = joblib.load(scaler_path)

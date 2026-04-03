@@ -1,0 +1,1 @@
+import numpy as np; from backend.diagnosis.lstm_engine import LSTMEngine; eng = LSTMEngine('lunge'); seq = np.random.rand(30, 9); print(eng.analyze(seq))
