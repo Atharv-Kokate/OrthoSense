@@ -8,4 +8,5 @@ dependencies = [
     "fastdtw>=0.3.4",
     "pandas>=3.0.2",
     "pyttsx3>=2.99",
+    "websockets>=16.0",
 ]

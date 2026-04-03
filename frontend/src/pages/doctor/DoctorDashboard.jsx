@@ -1,23 +1,49 @@
-import React from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, Users, CheckCircle, Clock } from 'lucide-react';
-
-const mockPatients = [
-  { id: 1, name: 'Sarah Jenkins', compliance: 95, unreadAlerts: 0, lastSession: 'Today' },
-  { id: 2, name: 'Michael Chen', compliance: 42, unreadAlerts: 2, lastSession: '3 days ago' },
-];
+import { clinicalService } from '../../services/api';
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const doctorId = localStorage.getItem('user_id');
+        if (!doctorId) {
+          navigate('/login');
+          return;
+        }
+        
+        const dashboardData = await clinicalService.getDoctorDashboard(doctorId);
+        setData(dashboardData);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, [navigate]);
+
+  if (isLoading) return <div className="p-8 text-center text-slate-500">Loading Clinical Dashboard...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error loading dashboard: {error}</div>;
+  if (!data) return null;
+
+  const flaggedCount = data.patients.filter(p => p.needs_attention).length;
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Clinic Dashboard</h2>
+          <h2 className="text-2xl font-bold text-slate-800">{data.doctor_name}'s Clinic Dashboard</h2>
           <p className="text-slate-500">Overview of patient tele-rehab progress.</p>
         </div>
-        <button 
+        <button
           onClick={() => navigate('/doctor/onboard')}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition"
         >
@@ -33,8 +59,8 @@ export default function DoctorDashboard() {
               <CheckCircle className="text-emerald-600" size={24} />
             </div>
             <div>
-              <p className="text-slate-500 text-sm font-medium">Avg Compliance</p>
-              <p className="text-2xl font-bold text-slate-800">82%</p>
+              <p className="text-slate-500 text-sm font-medium">Total Registered</p>
+              <p className="text-2xl font-bold text-slate-800">{data.total_active_patients}</p>
             </div>
           </div>
         </div>
@@ -44,8 +70,8 @@ export default function DoctorDashboard() {
               <Activity className="text-amber-600" size={24} />
             </div>
             <div>
-              <p className="text-slate-500 text-sm font-medium">Flagged Forms</p>
-              <p className="text-2xl font-bold text-slate-800">2 Patients</p>
+              <p className="text-slate-500 text-sm font-medium">Flagged Forms / Needs Attention</p>
+              <p className="text-2xl font-bold text-slate-800">{flaggedCount} Patients</p>   
             </div>
           </div>
         </div>
@@ -55,8 +81,8 @@ export default function DoctorDashboard() {
               <Clock className="text-blue-600" size={24} />
             </div>
             <div>
-              <p className="text-slate-500 text-sm font-medium">Sessions Today</p>
-              <p className="text-2xl font-bold text-slate-800">14</p>
+              <p className="text-slate-500 text-sm font-medium">System Status</p>
+              <p className="text-2xl font-bold text-slate-800">Online</p>
             </div>
           </div>
         </div>
@@ -67,34 +93,33 @@ export default function DoctorDashboard() {
           <h3 className="font-semibold text-slate-800 text-lg">Active Patients</h3>
         </div>
         <div className="divide-y divide-slate-100">
-          {mockPatients.map((patient) => (
-            <div 
-              key={patient.id} 
-              onClick={() => navigate(`/doctor/patient/${patient.id}`)}
+          {data.patients.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">No patients registered. Click "Register New Patient" to begin clinical onboarding.</div>
+          ) : data.patients.map((patient) => (
+            <div
+              key={patient.patient_profile_id}
+              onClick={() => navigate(`/doctor/patient/${patient.patient_profile_id}`)}
               className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
-                  {patient.name.charAt(0)}
+                  {patient.patient_name.charAt(0)}
                 </div>
                 <div>
-                  <h4 className="font-medium text-slate-800">{patient.name}</h4>
-                  <p className="text-sm text-slate-500">Last active: {patient.lastSession}</p>
+                  <h4 className="font-medium text-slate-800">{patient.patient_name}</h4>
+                  <p className="text-sm text-slate-500">
+                    {patient.condition} • Last active: {patient.latest_session_date ? new Date(patient.latest_session_date).toLocaleDateString() : 'Never'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <div className="text-sm font-medium text-slate-800">{patient.compliance}% Compliance</div>
-                  <div className="w-24 h-2 bg-slate-200 rounded-full mt-1">
-                    <div 
-                      className={`h-full rounded-full ${patient.compliance > 80 ? 'bg-emerald-500' : 'bg-red-500'}`} 
-                      style={{ width: `${patient.compliance}%` }} 
-                    />
-                  </div>
-                </div>
-                {patient.unreadAlerts > 0 && (
-                  <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">
-                    {patient.unreadAlerts} Error flagged
+                {patient.needs_attention ? (
+                  <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                    Needs Attention
+                  </span>
+                ) : (
+                  <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                    On Track
                   </span>
                 )}
               </div>
@@ -105,3 +130,5 @@ export default function DoctorDashboard() {
     </div>
   );
 }
+
+

@@ -3,9 +3,11 @@ from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 
 class DTWEngine:
-    def __init__(self, threshold=300.0):
+    def __init__(self, threshold=300.0, tracked_features=None):
         # The DTW distance threshold above which the form is considered "incorrect"
         self.threshold = threshold
+        # The exact list of angular keys the DTW algorithm should measure over time
+        self.tracked_features = tracked_features or ["left_knee_angle", "right_knee_angle", "back_angle"]
         
     def process_sequence(self, raw_history):
         """
@@ -15,12 +17,9 @@ class DTWEngine:
         for frame in raw_history:
             if not frame:
                 continue
-            # Extract the core biomechanical angles that define the movement
-            vec = [
-                frame.get("left_knee_angle", 180),
-                frame.get("right_knee_angle", 180),
-                frame.get("back_angle", 0)
-            ]
+            
+            # Dynamically pull the exact features needed, using 0 as a default fallback
+            vec = [frame.get(feature_key, 0) for feature_key in self.tracked_features]
             sequence.append(vec)
         return np.array(sequence)
 

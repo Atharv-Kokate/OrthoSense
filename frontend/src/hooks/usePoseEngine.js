@@ -71,14 +71,23 @@ export function usePoseEngine(webcamRef, canvasRef, onTelemetryData) {
         const backAngle = calculateAngle(leftShoulder, leftHip, leftKnee);
         const symmetry = Math.abs(lKneeAngle - rKneeAngle);
 
+        const POSE_NAMES = [
+          'nose', 'left_eye_inner', 'left_eye', 'left_eye_outer', 'right_eye_inner', 'right_eye', 'right_eye_outer',
+          'left_ear', 'right_ear', 'mouth_left', 'mouth_right', 'left_shoulder', 'right_shoulder', 'left_elbow',
+          'right_elbow', 'left_wrist', 'right_wrist', 'left_pinky', 'right_pinky', 'left_index', 'right_index',
+          'left_thumb', 'right_thumb', 'left_hip', 'right_hip', 'left_knee', 'right_knee', 'left_ankle', 'right_ankle',
+          'left_heel', 'right_heel', 'left_foot_index', 'right_foot_index'
+        ];
+        
+        let raw_dict = {};
+        landmarks.forEach((lm, idx) => {
+            raw_dict[POSE_NAMES[idx]] = lm;
+        });
+
         // Bubble data up to whoever wants to send it to the backend
         if (telemetryCallbackRef.current) {
           telemetryCallbackRef.current({
-            raw_landmarks: {
-              left_hip: leftHip, left_knee: leftKnee, left_ankle: leftAnkle,
-              right_hip: rightHip, right_knee: rightKnee, right_ankle: rightAnkle,
-              left_shoulder: leftShoulder
-            },
+            raw_landmarks: raw_dict,
             left_knee_angle: lKneeAngle,
             right_knee_angle: rKneeAngle,
             back_angle: backAngle,

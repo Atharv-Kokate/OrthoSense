@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        # Load from backend/.env if running from project root, or .env if running from backend
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
 
 settings = Settings()

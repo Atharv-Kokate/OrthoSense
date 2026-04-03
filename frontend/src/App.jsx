@@ -6,35 +6,37 @@ import Login from './pages/auth/Login';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import ClinicalOnboarding from './pages/doctor/ClinicalOnboarding';
 import PatientDashboard from './pages/patient/PatientDashboard';
+import PatientDetail from './pages/doctor/PatientDetail';
 import GoldenRepCapture from './pages/doctor/GoldenRepCapture';
 import CameraView from './components/CameraView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Auth Flow */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
-        </Route>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          {/* Auth Flow */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+          </Route>
 
-        {/* Doctor Flow */}
-        <Route element={<DashboardLayout role="doctor" />}>
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/onboard" element={<ClinicalOnboarding />} />
-          <Route path="/doctor/capture-golden-rep" element={<GoldenRepCapture />} />
-          {/* Patient Detail route can be added later */}
-        </Route>
+          {/* Doctor Flow */}
+          <Route element={<DashboardLayout role="doctor" />}>
+            <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+            <Route path="/doctor/onboard" element={<ClinicalOnboarding />} />
+            <Route path="/doctor/capture-golden-rep" element={<GoldenRepCapture />} />
+            <Route path="/doctor/patient/:id" element={<PatientDetail />} />          </Route>
 
-        {/* Patient Flow */}
-        <Route element={<DashboardLayout role="patient" />}>
-          <Route path="/patient/dashboard" element={<PatientDashboard />} />
-          {/* The AI Session view */}
-          <Route path="/patient/session/:exerciseType" element={<CameraView />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          {/* Patient Flow */}
+          <Route element={<DashboardLayout role="patient" />}>
+            <Route path="/patient/dashboard" element={<PatientDashboard />} />            {/* The AI Session view */}
+            <Route path="/patient/session/:exerciseType" element={<ErrorBoundary><CameraView /></ErrorBoundary>} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

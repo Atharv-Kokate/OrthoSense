@@ -5,13 +5,46 @@ import numpy as np
 class TemporalBuffer:
     def __init__(self, maxlen=30):
         self.history = deque(maxlen=maxlen)
+        self.rep_metrics = [] # Track form score/ROM per completed rep
         
     def add(self, features):
         """Append latest feature set to the temporal buffer."""
         self.history.append(features)
         
-    def get_history(self):
-        """Return full history as a list of dicts."""
+    def add_rep_metric(self, max_rom, form_score):
+        """Store the performance of a completed rep to detect fatigue."""
+        self.rep_metrics.append({
+            "max_rom": max_rom,
+            "form_score": form_score
+        })
+        
+    def check_fatigue_degradation(self, window=3, threshold=15.0):
+        """
+        Check if form score or ROM has degraded significantly over the last `window` reps.
+        Returns True if the patient is fatiguing.
+        """
+        n = len(self.rep_metrics)
+        if n < window * 2:
+            # Need enough reps to calculate a baseline and compare against the window
+            return False, {}
+            
+        # Compare initial average (baseline) vs latest window average
+        initial_reps = self.rep_metrics[0:window]
+        latest_reps = self.rep_metrics[-window:]
+        
+        baseline_score = sum(r["form_score"] for r in initial_reps) / window
+        latest_score = sum(r["form_score"] for r in latest_reps) / window
+        
+        decline_percentage = 0
+        if baseline_score > 0:
+            decline_percentage = ((baseline_score - latest_score) / baseline_score) * 100
+            
+        is_fatigued = decline_percentage > threshold
+        return is_fatigued, {
+            "baseline_score": baseline_score,
+            "latest_score": latest_score,
+            "decline_percentage": decline_percentage
+        }
         return list(self.history)
         
     def get_latest(self):

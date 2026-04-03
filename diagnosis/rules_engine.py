@@ -39,8 +39,8 @@ def analyze(features, history, exercise, golden_rep=None):
                 errors.append({"type": "knee_too_deep", "severity": 0.8})
                 
         # Check forward lean
-        if features.get("back_angle", 0) > config["back_angle_max"]:
-            if is_persistent(history, lambda h: h.get("back_angle", 0) > config["back_angle_max"], frames=10):
+        if features.get("back_angle", 180) < config.get("back_angle_min", 90):
+            if is_persistent(history, lambda h: h.get("back_angle", 180) < config.get("back_angle_min", 90), frames=10):
                 errors.append({"type": "forward_lean", "severity": 0.7})
                 
         # Check symmetry imbalance

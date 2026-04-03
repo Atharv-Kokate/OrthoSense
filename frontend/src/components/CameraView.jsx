@@ -1,21 +1,24 @@
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { Activity, AlertTriangle, CheckCircle, Video, Target } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Activity, AlertTriangle, CheckCircle, Video, Target, Mic, MicOff } from 'lucide-react';
 import { useTelemetrySocket } from '../hooks/useTelemetrySocket';
 import { usePoseEngine } from '../hooks/usePoseEngine';
 
 export default function CameraView() {
+  const location = useLocation();
+  const patientId = location.state?.patientId || localStorage.getItem('user_id') || 1;
+
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
-  
+
   // Add a state to manage pre-session calibration
   const [isCalibrated, setIsCalibrated] = useState(false);
   const [calibrationHints, setCalibrationHints] = useState("Stand back so your full body is visible.");
 
-  // 1. Establish WebSocket link with the AI Brain API (mocked patient ID 1 for now)
-  const { status, telemetry, sendJsonMessage } = useTelemetrySocket(1);
+  // 1. Establish WebSocket link with the AI Brain API
+  const { status, telemetry, sendJsonMessage, isListening, startListening } = useTelemetrySocket(patientId);
   const { repCount, feedback, errors } = telemetry;
-
   // 2. Wire the extracted biomechanical data directly into the socket hook safely
   const handlePoseComputed = useCallback((telemetryPayload) => {
     
@@ -48,9 +51,7 @@ export default function CameraView() {
 
     // Only blast data over the wire if we're actively talking to the backend
     if (status === 'connected' || status === 'tracking' || status === 'buffering') {
-      // Omit raw_landmarks payload to keep network JSON fast and small
-      const { raw_landmarks, ...backendPayload } = telemetryPayload;
-      sendJsonMessage(backendPayload);
+      sendJsonMessage(telemetryPayload);
     }
   }, [status, sendJsonMessage, isCalibrated]);
 
@@ -123,12 +124,24 @@ export default function CameraView() {
       <div className="w-full md:w-96 flex flex-col gap-4">
         
         {/* REPS CARD */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center justify-center relative">
           <h3 className="text-slate-500 font-semibold mb-2">Total Repetitions</h3>
-          <div className="text-7xl font-bold text-indigo-600 tracking-tighter">
+          <div className="text-7xl font-bold text-indigo-600 tracking-tighter"> 
             {repCount}
           </div>
           <p className="text-sm text-slate-400 mt-2">Squat Target: 10</p>
+          
+          <button 
+            onClick={startListening}
+            className={`mt-4 px-4 py-2 rounded-full flex items-center gap-2 transition-all ${
+              isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {isListening ? <Mic size={20} /> : <MicOff size={20} />}
+            <span className="font-medium text-sm">
+              {isListening ? 'Listening...' : 'Talk to AI'}
+            </span>
+          </button>
         </div>
 
         {/* ACTIVE ERRORS CARD */}

@@ -1,7 +1,7 @@
 EXERCISE_CONFIG = {
     "squat": {
         "knee_angle_min": 70,
-        "back_angle_max": 45,
+        "back_angle_min": 90,
         "symmetry_threshold": 15
     },
     "lunge": {

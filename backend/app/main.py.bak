@@ -266,7 +266,6 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
     telemetry_session = start_session(db, patient_id, exercise)
     rep_count = 0
     is_in_rep = False
-    is_fatigued = False
     lowest_knee_angle = 180.0
     accumulated_errors = [] # Store errors found during the current rep
     last_llm_response_for_rep = ""
@@ -313,98 +312,75 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
                 await asyncio.sleep(3)
                 continue
 
-            # 4. Math extraction and ML Buffering
-            if "left_knee_angle" not in features:
-                continue
+                is_in_rep = True
+                if current_knee_angle < lowest_knee_angle:
+                    lowest_knee_angle = current_knee_angle
+
+            # Squat coming back up -> Rep Completed!
+            elif current_knee_angle > 160 and is_in_rep:
+                rep_count += 1
                 
-            current_knee_angle = (features["left_knee_angle"] + features["right_knee_angle"]) / 2.0
-            buffer.add(features)
-            seq = buffer.get_lstm_sequence()
+                # Check if they failed to reach their Doctor's prescribed Golden Rep target depth
+                if lowest_knee_angle > target_rom_degrees:
+                    accumulated_errors.append({
+                        "type": "Insufficient Depth",
+                        "severity": round((lowest_knee_angle - target_rom_degrees) / 10.0, 2), # Scale severity based on how far off target
+                        "clinical_target": target_rom_degrees,
+                        "achieved": round(lowest_knee_angle, 2)
+                    })
 
-            if seq is not None and len(seq) == buffer.history.maxlen:
-                # 5. Continuous AI monitoring
-                analysis_result = expert_lstm.analyze(seq)
-                errors = analysis_result.get("errors", [])
-                lstm_confidence = analysis_result.get("confidence", 0.95)
+                # Compute Rep Form Score for fatigue tracking
+                rep_penalty = sum([err.get("severity", 0.5) * 5 for err in accumulated_errors])
+                rep_form_score = max(0.0, 100.0 - rep_penalty * 4)
+                buffer.add_rep_metric(lowest_knee_angle, rep_form_score)
                 
-                # Squat going down -> Started a Rep!
-                if current_knee_angle < engagement_threshold:
-                    is_in_rep = True
-                    if current_knee_angle < lowest_knee_angle:
-                        lowest_knee_angle = current_knee_angle
-
-                # Squat coming back up -> Rep Completed!
-                elif current_knee_angle > 160 and is_in_rep:
-                    rep_count += 1
-                    
-                    # Check if they failed to reach their Doctor's prescribed Golden Rep target depth
-                    if lowest_knee_angle > target_rom_degrees:
-                        accumulated_errors.append({
-                            "type": "Insufficient Depth",
-                            "severity": round((lowest_knee_angle - target_rom_degrees) / 10.0, 2),
-                            "clinical_target": target_rom_degrees,
-                            "achieved": round(lowest_knee_angle, 2)
-                        })
-
-                    # Compute Rep Form Score for fatigue tracking
-                    rep_penalty = sum([err.get("severity", 0.5) * 5 for err in accumulated_errors])
-                    rep_form_score = max(0.0, 100.0 - rep_penalty * 4)
-                    buffer.add_rep_metric(lowest_knee_angle, rep_form_score)
-                    
-                    # Check Fatigue (Mid-Session Intervention)
-                    is_fatigued, fatigue_metrics = buffer.check_fatigue_degradation(window=3, threshold=15.0)
-                    if is_fatigued and rep_count < target_reps:
-                        target_reps = rep_count  # End session early
-                        accumulated_errors.append({
-                            "type": "Session Interrupted: Muscular Fatigue Detected",
-                            "severity": 1.0,
-                            "clinical_target": "Safe Continuation",
-                            "achieved": "Degraded Form"
-                        })
-                        last_llm_response_for_rep = await generate_patient_feedback(
-                            patient_first_name=patient_name,
-                            exercise=exercise,
-                            current_rep=rep_count,
-                            target_reps=target_reps,
-                            errors=accumulated_errors,
-                            is_fatigued=True,
-                            fatigue_metrics=fatigue_metrics
-                        )
-                    elif accumulated_errors:
-                        last_llm_response_for_rep = await generate_patient_feedback(
-                            patient_first_name=patient_name,
-                            exercise=exercise,
-                            current_rep=rep_count,
-                            target_reps=target_reps,
-                            errors=accumulated_errors,
-                            is_fatigued=False,
-                            fatigue_metrics=None
-                        )
-
-                    # Write to Medical Record Database!
-                    log_repetition(
-                        db=db,
-                        session_id=telemetry_session.id,
-                        rep_number=rep_count,
-                        max_rom_achieved=lowest_knee_angle,
+                # Check Fatigue (Mid-Session Intervention)
+                is_fatigued, fatigue_metrics = buffer.check_fatigue_degradation(window=3, threshold=15.0)
+                if is_fatigued and rep_count < target_reps:
+                    target_reps = rep_count  # End session early
+                    accumulated_errors.append({
+                        "type": "Session Interrupted: Muscular Fatigue Detected",
+                        "severity": 1.0,
+                        "clinical_target": "Safe Continuation",
+                        "achieved": "Degraded Form"
+                    })
+                    last_llm_response_for_rep = await generate_patient_feedback(
+                        patient_first_name=patient_name,
+                        exercise=exercise,
+                        current_rep=rep_count,
+                        target_reps=target_reps,
                         errors=accumulated_errors,
-                        ai_feedback=last_llm_response_for_rep
+                        is_fatigued=True,
+                        fatigue_metrics=fatigue_metrics
                     )
 
-                    # Reset rep state
-                    is_in_rep = False
-                    lowest_knee_angle = 180.0
-                    accumulated_errors = []
+                # Write to Medical Record Database!
+                log_repetition(
+                    db=db,
+                    session_id=telemetry_session.id,
+                    rep_number=rep_count,
+                    max_rom_achieved=lowest_knee_angle,
+                    errors=accumulated_errors,
+                    ai_feedback=last_llm_response_for_rep
+                )
 
+                # Reset rep state
+                is_in_rep = False
+                lowest_knee_angle = 180.0
+                accumulated_errors = []
+                # Keep final intervention message if we stopped, else clear
+                if not is_fatigued:
+                    last_llm_response_for_rep = ""
+                
                 if errors:
                     # Append new distinct errors to the current rep tracking
                     for err in errors:
                         if not any(e["type"] == err["type"] for e in accumulated_errors):
                             accumulated_errors.append(err)
-
+                
                 response_payload = {
                     "status": "tracking",
-                    "lstm_confidence": lstm_confidence,
+                    "lstm_confidence": 0.95,
                     "errors": errors,
                     "llm_feedback": last_llm_response_for_rep if last_llm_response_for_rep else None,
                     "rep_count": rep_count
@@ -430,29 +406,25 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
 
                 await websocket.send_json(response_payload)
                 
-                # Clear the message AFTER sending it to React so we don't spam TTS every frame
-                if response_payload.get("llm_feedback") and not is_fatigued:
-                     last_llm_response_for_rep = ""
-
                 # Check for session completion
                 if rep_count >= target_reps:
                     try:
                         new_rx = evaluate_patient_adaptation(db, patient_id, exercise)
                         await websocket.send_json({
-                            "status": "completed",
+                            "status": "completed", 
                             "message": "Workout finished.",
                             "llm_feedback": "Workout complete. Saving your clinical progress."
                         })
                     except Exception as e:
                         print(f"Error completing session: {e}")
-
+                    
                     await asyncio.sleep(2) # Give frontend enough time to read the message and speak BEFORE closing
                     await websocket.close()
                     break # Terminate session loop cleanly
             else:
                 # Buffer is still filling up (first 1 second)
                 await websocket.send_json({"status": "buffering", "message": "Gathering AI baseline..."})
-
+                
     except WebSocketDisconnect:
         print(f"Patient {patient_id} Tracking Session Ended cleanly.")
         
@@ -467,63 +439,8 @@ async def websocket_endpoint(websocket: WebSocket, patient_id: int, db: Session 
             print(f"Adaptation Engine Execution Error safely caught: {adapt_err}")
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         print(f"Tracking error: {e}")
         try:
             await websocket.close()
         except:
             pass
-
-# =========================================================
-# CUSTOM EXERCISE ENDPOINTS
-# =========================================================
-
-from app.schemas import CustomExerciseCreate, CustomExerciseResponse
-from config.calibration_manager import CalibrationManager
-
-@app.post("/api/exercises/custom", response_model=CustomExerciseResponse)
-def create_custom_exercise(
-    payload: CustomExerciseCreate,
-    db: Session = Depends(get_db),
-    current_token: str = Depends(oauth2_scheme)
-):
-    current_user = get_user_from_token(db, current_token)
-    if not current_user or current_user.role != "doctor":
-        raise HTTPException(status_code=403, detail="Only doctors can create novel exercises.")
-        
-    identifier = f"{current_user.id}_{payload.name.lower().replace(' ', '_')}_{int(time.time())}"
-    
-    nuevo = domain.CustomExercise(
-        doctor_id=current_user.id,
-        name=payload.name,
-        identifier=identifier,
-        tracked_angles=payload.tracked_angles
-    )
-    db.add(nuevo)
-    db.commit()
-    db.refresh(nuevo)
-    
-    # Save the 3D analytical dataset to our configuration system
-    cm = CalibrationManager()
-    cm.save_golden_rep(identifier, payload.golden_rep_data)
-    
-    return CustomExerciseResponse(
-        id=nuevo.id,
-        name=nuevo.name,
-        identifier=nuevo.identifier,
-        tracked_angles=nuevo.tracked_angles,
-        created_at=nuevo.created_at
-    )
-
-@app.get("/api/exercises/custom", response_model=list[CustomExerciseResponse])
-def list_custom_exercises(
-    db: Session = Depends(get_db),
-    current_token: str = Depends(oauth2_scheme)
-):
-    current_user = get_user_from_token(db, current_token)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-        
-    return db.query(domain.CustomExercise).all()  # Allow patients to see them too if assigned
-

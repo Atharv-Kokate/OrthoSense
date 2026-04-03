@@ -30,6 +30,19 @@ class PatientProfile(Base):
     prescriptions = relationship("ExercisePrescription", back_populates="patient")
     sessions = relationship("TelemetrySession", back_populates="patient")
 
+class CustomExercise(Base):
+    """Dynamic exercises created by doctors via the no-code studio."""
+    __tablename__ = "custom_exercises"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.id"))
+    name = Column(String, nullable=False)
+    identifier = Column(String, unique=True, index=True) # e.g., 'dr_smith_bicep_curl_1'
+    tracked_angles = Column(JSON, nullable=False) # e.g., {"elbow_angle": ["left_shoulder", "left_elbow", "left_wrist"]}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    doctor = relationship("User", foreign_keys=[doctor_id])
+
 class ExercisePrescription(Base):
     """Dynamic targets set either by doctor manually or auto-adjusted by our AI."""
     __tablename__ = "exercise_prescriptions"
@@ -41,6 +54,7 @@ class ExercisePrescription(Base):
     reps_per_set = Column(Integer, default=10)
     sets_per_day = Column(Integer, default=3)
     auto_adaptive = Column(Boolean, default=True) # Allows AI to upgrade/downgrade difficulty
+    adaptation_reason = Column(String) # Audit trail for AI updates
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     patient = relationship("PatientProfile", back_populates="prescriptions")

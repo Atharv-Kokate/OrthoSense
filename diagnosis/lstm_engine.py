@@ -11,10 +11,10 @@ sys.path.append(models_dir)
 from train_lstm import BiomechanicalLSTM
 
 class LSTMEngine:
-    def __init__(self, exercise="squat", 
-                 model_path="models/squat_expert_model.pth", 
-                 scaler_path="models/scaler.pkl", 
-                 label_map_path="models/squat_label_map.json"):
+    def __init__(self, exercise="squat",
+                 model_path="../models/squat_expert_model.pth", 
+                 scaler_path="../models/scaler.pkl", 
+                 label_map_path="../models/squat_label_map.json"):
         
         self.exercise = exercise
         
